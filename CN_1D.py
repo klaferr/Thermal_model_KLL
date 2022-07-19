@@ -21,12 +21,13 @@ from scipy import sparse
 from scipy.sparse.linalg import spsolve
 import time
 import json
-#import layer_maker   # what is this
 
+# ** Import custom Libraries **
 import Orbital_Parameters as op
+import Make_Layers as ml
 
 # ** Define things needed to run **    
-loc = '/Users/laferrierek/Box Sync/Desktop/Mars_Troughs/Codes/Thermal_model/'
+loc = '/Users/laferrierek/Box Sync/Desktop/Mars_Troughs/Project_MCMC/Thermal_model_KLL/'
 
 # Aesthetic
 fs = (10, 8)
@@ -34,7 +35,7 @@ res = 350
 plt.rc("font", size=18, family="serif")
 plt.style.use('ggplot')
 
-#%% Constants - pull the specific mars ones from a paramfille. 
+#%% Constants - From files and basic.
 
 class Profile:
   def reader(self,input_dict,*kwargs):
@@ -46,19 +47,19 @@ class Profile:
         continue
     
     
-with open(loc+"trough_parameters_2021.json",'r') as file:
+with open(loc+"data/Trough_slope_02_9.json",'r') as file:
     a=file.readlines()
 Mars_Trough=Profile()
 Mars_Trough.reader(json.loads(a[0]))
 
 
-with open(loc+'trough_flat_parameters_1.json','r') as file:
+with open(loc+'data/Trough_flat_00.json','r') as file:
     a = file.readlines()
 flat_Mars_Trough=Profile()
 flat_Mars_Trough.reader(json.loads(a[0]))
 
 
-with open(loc+"bramson_layers.json",'r') as file:
+with open(loc+"data/Layers_Bramson2019.json",'r') as file:
     a=file.readlines()
 bramson=Profile()
 bramson.reader(json.loads(a[0]))
@@ -133,85 +134,7 @@ runTime = 15
 f = 0.5
 dt = 500
 
-#%% get orbital solutions (solar flux, etc) for the trough provided. 
-#%% 1. Read in values for trough, get orbitial solutions
-ecc = Mars_Trough.eccentricity
-obl = np.deg2rad(Mars_Trough.obl)
-Lsp = np.deg2rad(Mars_Trough.Lsp)
-dt_orb = Mars_Trough.dt
-
-soldist, sf, IRdown, visScattered, nStepsInYear, lsWrapped, hr, ltst, lsrad, az, sky, flatVis, flatIR = op(ecc, obl, Lsp, dt_orb, flat_Mars_Trough)
-np.savetxt('flatVis_Saved_Trough1.txt', sf)
-
-# Run - flat
-T_regs, fwindupTemps, ffinaltemps, fTsurf, ffrostMasses = Crank_Nicholson(nLayers, nStepsInYear, windupTime, runTime, ktherm, dz, dt, rho, cp, emissivity, Tfrost, Tref)
-
-# write a save file
-np.savetxt('CN_flat_Trough1.txt', T_regs, delimiter=',', header='Temp (K) for flat')
-
-#%% actual with slope
-soldist, sf, IRdown, visScattered, nStepsInYear, lsWrapped, hr, ltst, lsrad, az, sky, flatVis, flatIR = op(ecc, obl, Lsp, dt_orb, Mars_Trough)
-#%% 2. Use the pre-made from solar_flux_trough.py to run for xMyrs
-# read in min_mean,max, use max. 
-time_frame = 100
-time_op, sfmin, sfmean, sf = np.loadtxt(loc+'solar_flux_minmeanmax_%3.0f_kyr_Trough1.txt'%time_frame, skiprows=1, delimiter=',', unpack=True)
-
-
-#%% Make layers from Bramson et al. 2019
-k_input = bramson.k 
-density_input = bramson.rho
-c_input = bramson.cp
-depths_input = bramson.depth
-layerGrowth = bramson.Growth     
-dailyLayers  = bramson.daily         
-annualLayers = bramson.annual
-dt = bramson.dt
-
-layerPropertyVectors = np.vstack((k_input, density_input, c_input, depths_input)).T
-
-modelLayers, cdt, layerIndices, diurnal_depth, annual_depth = layer_maker.layerProperties(layerPropertyVectors, MarsyearLength, Mars_Trough.Rotation_rate, layerGrowth,dailyLayers, annualLayers)
-
-ktherm = modelLayers[:, 0]
-rho = modelLayers[:, 1]
-cp = modelLayers[:, 2]
-kappa = modelLayers[:, 3]
-dz = modelLayers[:, 4]
-depthsAtMiddleOfLayers = modelLayers[:, 5]
-timestepSkinDepth = np.sqrt(kappa[0]*dt/np.pi)
-nLayers = np.size(dz)
-
-numPropLayers = np.size(layerIndices)
-if numPropLayers > 1:
-    iceTableIndex = int(layerIndices[1])
-else:
-    iceTableIndex = 1
-    
-
-'''
-#Bramson 2017 model
-k_input = np.array([0.0459, 2.952])  
-density_input = np.array([1626.18, 1615])  
-c_input = np.array([837, 925]) 
-depths_input = np.array([0, 0.5])
-layerGrowth = 1.03                
-dailyLayers  = 10                  
-annualLayers = 6   
-dt = 500
-
-layerPropertyVectors = np.vstack((k_input, density_input, c_input, depths_input)).T
-
-modelLayers, cdt, layerIndicies = layer_maker.layerProperties(layerPropertyVectors, MarsyearLength, Mars_Trough.Rotation_rate, layerGrowth,dailyLayers, annualLayers)
-
-ktherm = modelLayers[:, 0]
-rho = modelLayers[:, 1]
-cp = modelLayers[:, 2]
-kappa = modelLayers[:, 3]
-dz = modelLayers[:, 4]
-depthsAtMiddleOfLayers = modelLayers[:, 5]
-timestepSkinDepth = np.sqrt(kappa[0]*dt/np.pi)
-nLayers = np.size(dz)
-'''
-#%% Functions 
+#%% Define functions
 
 # - Phase diagrams
 def clapyeron(triple_pressure, triple_T, R_bar, Lc, T):
@@ -265,10 +188,8 @@ def plot_layers(layer_depth, layer_number, layer_thickness):
     plt.gca().invert_yaxis()
     plt.show()
 
-
-# - Define Crank Nicholson
-# missing inputs: 
-def Crank_Nicholson(nLayers, nStepsInYear, windupTime, runTime, ktherm, dz, dt, rho, cp, emissivity, Tfrost, Tref):
+# - Main focus
+def Crank_Nicholson(nLayers, nStepsInYear, windupTime, runTime, ktherm, dz, dt, rho, cp, emissivity, Tfrost, Tref, depthsAtMiddleOfLayers):
     Temps = np.zeros((nLayers, nStepsInYear))
     Tsurf = np.zeros((nStepsInYear))
     lastTimestepTemps = np.zeros((nLayers, runTime))
@@ -409,6 +330,100 @@ def Crank_Nicholson(nLayers, nStepsInYear, windupTime, runTime, ktherm, dz, dt, 
     print('Took %2.2f'%(time.time()-st))
       
     return Temps, windupTemps, lastTimestepTemps, Tsurf, frostMasses
+
+#%% Actual run
+if __name__ == "__main__":
+    # given specific trough:
+    print("Step 1: find orbital parameters")
+    
+    # grabbing the real values. 
+    ecc = Mars_Trough.eccentricity
+    obl = np.deg2rad(Mars_Trough.obl)
+    Lsp = np.deg2rad(Mars_Trough.Lsp)
+    dt_orb = Mars_Trough.dt
+    
+    soldist, sf, IRdown, visScattered, nStepsInYear, lsWrapped, hr, ltst, lsrad, az, sky, flatVis, flatIR = op.orbital_params(ecc, obl, Lsp, dt_orb, flat_Mars_Trough)
+    #np.savetxt('flatVis_Saved_Trough1.txt', sf)
+
+    print("Step 2: run for a flat trough")
+    # need layer infos
+    
+    nLayers, ktherm, dz, rho, cp, kappa, depthsAtMiddleOfLayers = ml.Make(bramson, MarsyearLength, Mars_Trough.Rotation_rate) 
+    
+    T_regs, fwindupTemps, ffinaltemps, fTsurf, ffrostMasses = Crank_Nicholson(nLayers, nStepsInYear, windupTime, runTime, ktherm, dz, dt, rho, cp, emissivity, Tfrost, Tref, depthsAtMiddleOfLayers)
+
+    # write a save file
+    #np.savetxt('CN_flat_Trough1.txt', T_regs, delimiter=',', header='Temp (K) for flat')
+    
+    print("Step 3: Run for real slope")
+    soldist, sf, IRdown, visScattered, nStepsInYear, lsWrapped, hr, ltst, lsrad, az, sky, flatVis, flatIR = op.orbital_params(ecc, obl, Lsp, dt_orb, Mars_Trough)
+
+
+#%% 2. Use the pre-made from solar_flux_trough.py to run for xMyrs
+# read in min_mean,max, use max. 
+time_frame = 100
+time_op, sfmin, sfmean, sf = np.loadtxt(loc+'solar_flux_minmeanmax_%3.0f_kyr_Trough1.txt'%time_frame, skiprows=1, delimiter=',', unpack=True)
+
+#%% 
+
+#%% Make layers from Bramson et al. 2019
+k_input = bramson.k 
+density_input = bramson.rho
+c_input = bramson.cp
+depths_input = bramson.depth
+layerGrowth = bramson.Growth     
+dailyLayers  = bramson.daily         
+annualLayers = bramson.annual
+dt = bramson.dt
+
+layerPropertyVectors = np.vstack((k_input, density_input, c_input, depths_input)).T
+#%%
+modelLayers, cdt, layerIndices, diurnal_depth, annual_depth = layer_maker.layerProperties(layerPropertyVectors, MarsyearLength, Mars_Trough.Rotation_rate, layerGrowth,dailyLayers, annualLayers)
+
+ktherm = modelLayers[:, 0]
+rho = modelLayers[:, 1]
+cp = modelLayers[:, 2]
+kappa = modelLayers[:, 3]
+dz = modelLayers[:, 4]
+depthsAtMiddleOfLayers = modelLayers[:, 5]
+timestepSkinDepth = np.sqrt(kappa[0]*dt/np.pi)
+nLayers = np.size(dz)
+
+numPropLayers = np.size(layerIndices)
+if numPropLayers > 1:
+    iceTableIndex = int(layerIndices[1])
+else:
+    iceTableIndex = 1
+    
+
+'''
+#Bramson 2017 model
+k_input = np.array([0.0459, 2.952])  
+density_input = np.array([1626.18, 1615])  
+c_input = np.array([837, 925]) 
+depths_input = np.array([0, 0.5])
+layerGrowth = 1.03                
+dailyLayers  = 10                  
+annualLayers = 6   
+dt = 500
+
+layerPropertyVectors = np.vstack((k_input, density_input, c_input, depths_input)).T
+
+modelLayers, cdt, layerIndicies = layer_maker.layerProperties(layerPropertyVectors, MarsyearLength, Mars_Trough.Rotation_rate, layerGrowth,dailyLayers, annualLayers)
+
+ktherm = modelLayers[:, 0]
+rho = modelLayers[:, 1]
+cp = modelLayers[:, 2]
+kappa = modelLayers[:, 3]
+dz = modelLayers[:, 4]
+depthsAtMiddleOfLayers = modelLayers[:, 5]
+timestepSkinDepth = np.sqrt(kappa[0]*dt/np.pi)
+nLayers = np.size(dz)
+'''
+
+
+
+
 
 #%% Run - the old way
 nStepsInYear = 118780
@@ -611,6 +626,7 @@ Dreg = 3*10**(-4) # m2/s
 rhoIce = 920 # kg/m3
 waterVapDensity = 0.013 #kg/m3 (google)
 dust = 3/100 #(Grima et al.)
+'''
 atmo_rhov = 
 
 R = retreat(Dreg, iceTable_rhov, atmo_rhov, lag, dust, rhoIce)
@@ -649,7 +665,7 @@ convective_loss(water_mol, np.average(averageDiurnalSurfTemps, Tatm), 0.002, 2.5
 
 
 
-
+'''
 
 
 

@@ -3,9 +3,7 @@
 
 # Dependences
 import numpy as np
-import matplotlib.pyplot as plt
 import math 
-from scipy.interpolate import interp1d, PchipInterpolator
 
 # Constants
 au = 1.4959787061e11    # meters
@@ -32,7 +30,6 @@ def surface_properties(slope, s, sloperad, lsrad):
         flatVis = np.zeros((nStepsInYear,1))
         flatIR = np.zeros((nStepsInYear,1))
         sky = 1
-    
     
     # Calculate frost point temperatures vs time for a given elevation
     atmPressTerms = np.array([7.97078, -0.539781, 0.468818, 0.368771, -0.392702, 0.0206071, -0.0224410, -0.0326866, -0.00261966, 0.0145776, -0.000184519])
