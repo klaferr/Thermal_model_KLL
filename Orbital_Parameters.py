@@ -4,6 +4,7 @@
 # Dependences
 import numpy as np
 import math 
+from scipy.interpolate import PchipInterpolator
 
 # Constants
 au = 1.4959787061e11    # meters
@@ -15,6 +16,8 @@ nn=np.int(1e4)
 # Set to be zero to start
 flatVisSaved = 0 
 flatIRSaved = 0 
+
+loc = '/Users/laferrierek/Box Sync/Desktop/Mars_Troughs/Project_MCMC/Thermal_model_KLL/'
 
 #%% Functions
     
@@ -43,7 +46,6 @@ def surface_properties(slope, s, sloperad, lsrad):
     
     return CO2FrostPoints, atmPress, flatVis, flatIR, sky
 
-    
 
 def low_res_true_anomly(ecc, s):
     '''
@@ -210,7 +212,7 @@ def orbital_params(ecc, obl, Lsp, dt, s):
     if s.Slope != 0:
         sky = np.cos(np.deg2rad(s.Slope)/2)**2
         # Ali - load(s.flatSavedFile);
-        flatVis = np.loadtxt('flatVis_Saved_Trough1.txt', delimiter=',')
+        flatVis = np.loadtxt(loc+'data/flatVis_Saved_Trough1.txt', delimiter=',')
         #flatVis = np.zeros((nStepsInYear))
         flatIR = np.zeros((nStepsInYear))
     else:

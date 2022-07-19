@@ -8,8 +8,7 @@ Created on Fri Aug 13 11:00:37 2021
 Runs a crank - nichoson 1d thermal model
 
 Builds off notes+papers provided by A. Bramson
-
-!!! Everything after CN only handles 1 year. need to run wihtin CN loop potentially. 
+Beware of the way ali looped days/year.
 
 """
 # ** Import libaries **
@@ -28,12 +27,6 @@ import Make_Layers as ml
 
 # ** Define things needed to run **    
 loc = '/Users/laferrierek/Box Sync/Desktop/Mars_Troughs/Project_MCMC/Thermal_model_KLL/'
-
-# Aesthetic
-fs = (10, 8)
-res = 350
-plt.rc("font", size=18, family="serif")
-plt.style.use('ggplot')
 
 #%% Constants - From files and basic.
 
@@ -168,6 +161,66 @@ def stability_depth(triple_pressure, triple_T, Lc, T, f1, m1, rho_atmo, layer_de
     match = np.argwhere(rho_vapor >= rho_atmo)[0]
     excess_ice_depth = layer_depth[match[0]]
     return excess_ice_depth
+
+# - Dealing with CN results
+def final_year(Tsurf, Temps, frostMasses):
+    # Find min, max and average temperatures at each depth over the last year
+    print('Minimum Surface Temp: %8.4f K'%np.min(Tsurf))
+    print('Maximum Surface Temp: %8.4f K'%np.max(Tsurf))
+    print('Mean Surface Temp: %8.4f K'%np.nanmean(Tsurf))
+    
+    minT = np.min(Temps)
+    maxT =  np.max(Temps)
+    averageTemps = np.mean(Temps)
+    
+    print('Minimum subSurface Temp: %8.4f K'%minT)
+    print('Maximum subSurface Temp: %8.4f K'%maxT)
+    print('Mean subSurface Temp: %8.4f K'%averageTemps)
+    
+    rho_CO2ice = 1600
+    equivalentCO2Thicknesses = frostMasses/rho_CO2ice;
+    
+    print('Max frost thickness during the year: %5.4f m'%max(equivalentCO2Thicknesses))
+    
+    print(r'Minimum Frost Mass: %8.4f kg/m^2' %min(frostMasses))
+    print(r'Maximum Frost Mass: %8.4f kg/m^2'%max(frostMasses))
+    print(r'Mean Frost Mass: %8.4f kg/m^2'%np.nanmean(frostMasses))
+    return 
+
+def diurnal_average(hr, Temps, T_regs, nLayers):
+    days = np.round(MarsyearLength_days).astype("int")
+
+    beginDayIndex = np.zeros((days+1))*np.nan
+    beginDayIndex[0] = 0
+    dayIndex = 1
+    for n in range(0, np.size(hr)):
+        if (hr[n] > 0) & (hr[n-1] < 0):
+            beginDayIndex[dayIndex] = n
+            dayIndex = dayIndex + 1
+    
+    beginDayIndex = beginDayIndex.astype('int')
+    numDays = np.max(np.size(beginDayIndex))
+    averageDiurnalTemps = np.zeros((nLayers, numDays))
+    averageDiurnalSurfTemps = np.zeros((numDays))
+    minimumDiurnalSurfTemps = np.zeros((numDays))
+    T_reg_Diurnal = np.zeros((nLayers, numDays))
+    
+    for n in np.arange(0, numDays):
+        if n == numDays-1:
+            averageDiurnalTemps[:,n] = np.mean(Temps[:, beginDayIndex[n]:np.size(Temps, 1)], 1)
+            averageDiurnalSurfTemps[n] = np.nanmean(Temps[0, beginDayIndex[n]:np.size(Temps,1)])
+            minimumDiurnalSurfTemps[n] = np.nanmin(Temps[0, beginDayIndex[n]:np.size(Temps,1)])
+            T_reg_Diurnal[:, n] = np.mean(T_regs[:, beginDayIndex[n]:np.size(Temps,1)], 1)
+        else:
+            averageDiurnalTemps[:,n] = np.mean(Temps[:, beginDayIndex[n]:beginDayIndex[n+1]-1], 1)
+            averageDiurnalSurfTemps[n] = np.nanmean(Temps[0, beginDayIndex[n]:beginDayIndex[n+1]-1])
+            minimumDiurnalSurfTemps[n] = np.nanmin(Temps[0, beginDayIndex[n]:beginDayIndex[n+1]-1])
+            T_reg_Diurnal[:, n] = np.mean(T_regs[:, beginDayIndex[n]:beginDayIndex[n+1]-1], 1)
+    
+    averageDiurnalAllTemps = np.concatenate((averageDiurnalSurfTemps.reshape(1,numDays), averageDiurnalTemps))
+    return averageDiurnalAllTemps
+    
+        
 
 # - Plots
 def plot_layers(layer_depth, layer_number, layer_thickness):
@@ -331,116 +384,6 @@ def Crank_Nicholson(nLayers, nStepsInYear, windupTime, runTime, ktherm, dz, dt, 
       
     return Temps, windupTemps, lastTimestepTemps, Tsurf, frostMasses
 
-#%% Actual run
-if __name__ == "__main__":
-    # given specific trough:
-    print("Step 1: find orbital parameters")
-    
-    # grabbing the real values. 
-    ecc = Mars_Trough.eccentricity
-    obl = np.deg2rad(Mars_Trough.obl)
-    Lsp = np.deg2rad(Mars_Trough.Lsp)
-    dt_orb = Mars_Trough.dt
-    
-    soldist, sf, IRdown, visScattered, nStepsInYear, lsWrapped, hr, ltst, lsrad, az, sky, flatVis, flatIR = op.orbital_params(ecc, obl, Lsp, dt_orb, flat_Mars_Trough)
-    #np.savetxt('flatVis_Saved_Trough1.txt', sf)
-
-    print("Step 2: run for a flat trough")
-    # need layer infos
-    
-    nLayers, ktherm, dz, rho, cp, kappa, depthsAtMiddleOfLayers = ml.Make(bramson, MarsyearLength, Mars_Trough.Rotation_rate) 
-    
-    T_regs, fwindupTemps, ffinaltemps, fTsurf, ffrostMasses = Crank_Nicholson(nLayers, nStepsInYear, windupTime, runTime, ktherm, dz, dt, rho, cp, emissivity, Tfrost, Tref, depthsAtMiddleOfLayers)
-
-    # write a save file
-    #np.savetxt('CN_flat_Trough1.txt', T_regs, delimiter=',', header='Temp (K) for flat')
-    
-    print("Step 3: Run for real slope")
-    soldist, sf, IRdown, visScattered, nStepsInYear, lsWrapped, hr, ltst, lsrad, az, sky, flatVis, flatIR = op.orbital_params(ecc, obl, Lsp, dt_orb, Mars_Trough)
-
-
-#%% 2. Use the pre-made from solar_flux_trough.py to run for xMyrs
-# read in min_mean,max, use max. 
-time_frame = 100
-time_op, sfmin, sfmean, sf = np.loadtxt(loc+'solar_flux_minmeanmax_%3.0f_kyr_Trough1.txt'%time_frame, skiprows=1, delimiter=',', unpack=True)
-
-#%% 
-
-#%% Make layers from Bramson et al. 2019
-k_input = bramson.k 
-density_input = bramson.rho
-c_input = bramson.cp
-depths_input = bramson.depth
-layerGrowth = bramson.Growth     
-dailyLayers  = bramson.daily         
-annualLayers = bramson.annual
-dt = bramson.dt
-
-layerPropertyVectors = np.vstack((k_input, density_input, c_input, depths_input)).T
-#%%
-modelLayers, cdt, layerIndices, diurnal_depth, annual_depth = layer_maker.layerProperties(layerPropertyVectors, MarsyearLength, Mars_Trough.Rotation_rate, layerGrowth,dailyLayers, annualLayers)
-
-ktherm = modelLayers[:, 0]
-rho = modelLayers[:, 1]
-cp = modelLayers[:, 2]
-kappa = modelLayers[:, 3]
-dz = modelLayers[:, 4]
-depthsAtMiddleOfLayers = modelLayers[:, 5]
-timestepSkinDepth = np.sqrt(kappa[0]*dt/np.pi)
-nLayers = np.size(dz)
-
-numPropLayers = np.size(layerIndices)
-if numPropLayers > 1:
-    iceTableIndex = int(layerIndices[1])
-else:
-    iceTableIndex = 1
-    
-
-'''
-#Bramson 2017 model
-k_input = np.array([0.0459, 2.952])  
-density_input = np.array([1626.18, 1615])  
-c_input = np.array([837, 925]) 
-depths_input = np.array([0, 0.5])
-layerGrowth = 1.03                
-dailyLayers  = 10                  
-annualLayers = 6   
-dt = 500
-
-layerPropertyVectors = np.vstack((k_input, density_input, c_input, depths_input)).T
-
-modelLayers, cdt, layerIndicies = layer_maker.layerProperties(layerPropertyVectors, MarsyearLength, Mars_Trough.Rotation_rate, layerGrowth,dailyLayers, annualLayers)
-
-ktherm = modelLayers[:, 0]
-rho = modelLayers[:, 1]
-cp = modelLayers[:, 2]
-kappa = modelLayers[:, 3]
-dz = modelLayers[:, 4]
-depthsAtMiddleOfLayers = modelLayers[:, 5]
-timestepSkinDepth = np.sqrt(kappa[0]*dt/np.pi)
-nLayers = np.size(dz)
-'''
-
-
-
-
-
-#%% Run - the old way
-nStepsInYear = 118780
-Temps, windupTemps, finaltemps, Tsurf, frostMasses = Crank_Nicholson(nLayers, nStepsInYear, windupTime, runTime, ktherm, dz, dt, rho, cp, emissivity, Tfrost, Tref)
-
-
-#%% Run - as a loop
-
-st = time.time()
-
-for i in range(np.size(ecc)):
-    soldist, sf, IRdown, visScattered, nStepsInYear, lsWrapped, hr, ltst, lsrad, az, sky, flatVis, flatIR = op(ecc[i], obl[i], Lsp[i], dt_orb, Mars_Trough)
-    Temps, windupTemps, finaltemps, Tsurf, frostMasses = Crank_Nicholson(nLayers, nStepsInYear, windupTime, runTime, ktherm, dz, dt, rho, cp, emissivity, Tfrost, Tref)
-    if i %100 == 0:
-        print('Step: %2.0f'%i)
-        print(np.nanmax(Temps))
-print('end', time.time()-st)
 
 #%% Plot checks - i think temperature issues are rleated to the layer formation - not the thermal conductivity. 
 def plot_checks_CN(Temps, windupTemps, finaltemps,Tsurf, frostMasses, depthAtMiddleOfLayers, daily_depth, annual_depth):
@@ -546,126 +489,9 @@ def plot_checks_CN(Temps, windupTemps, finaltemps,Tsurf, frostMasses, depthAtMid
 
 avgT = plot_checks_CN(Temps, windupTemps, finaltemps,Tsurf, frostMasses, depthsAtMiddleOfLayers, diurnal_depth, annual_depth)
 # write a save file
-#%% this is not done.
-#Calculate and print some output
-#Temps, windupTemps, Tsurf, frostMasses = Crank_Nicholson(nLayers, nStepsInYear, windupTime, 15, ktherm, dz, dt, rho, cp, emissivity, Tfrost, Tref)
-
-# Find min, max and average temperatures at each depth over the last year
-print('Minimum Surface Temp: %8.4f K'%np.min(Tsurf))
-print('Maximum Surface Temp: %8.4f K'%np.max(Tsurf))
-print('Mean Surface Temp: %8.4f K'%np.nanmean(Tsurf))
-
-minT = np.min(Temps)
-maxT =  np.max(Temps)
-averageTemps = np.mean(Temps)
-
-rho_CO2ice = 1600
-equivalentCO2Thicknesses = frostMasses/rho_CO2ice;
-
-print('Max frost thickness during the year: %5.4f m'%max(equivalentCO2Thicknesses))
-
-print(r'Minimum Frost Mass: %8.4f kg/m^2' %min(frostMasses))
-print(r'Maximum Frost Mass: %8.4f kg/m^2'%max(frostMasses))
-print(r'Mean Frost Mass: %8.4f kg/m^2'%np.nanmean(frostMasses))
-
-#%%
-# diunral min tep
-# create diurnal averages throughout the last year:# Create diurnal averages throughout the last year
-beginDayIndex = np.zeros((670))*np.nan
-beginDayIndex[0] = 0
-dayIndex = 1
-for n in range(1, np.size(hr)):
-    if (hr[n] > 0) & (hr[n-1] < 0):
-        beginDayIndex[dayIndex] = n
-        dayIndex = dayIndex + 1
-
-beginDayIndex = beginDayIndex.astype('int')
-numDays = np.max(np.size(beginDayIndex))
-averageDiurnalTemps = np.zeros((nLayers, numDays))
-averageDiurnalSurfTemps = np.zeros((numDays))
-minimumDiurnalSurfTemps = np.zeros((numDays))
-T_reg_Diurnal = np.zeros((nLayers, numDays))
-
-for n in np.arange(0, numDays):
-    if n == numDays-1:
-        averageDiurnalTemps[:,n] = np.mean(Temps[:, beginDayIndex[n]:np.size(Temps, 1)], 1)
-        averageDiurnalSurfTemps[n] = np.nanmean(Temps[0, beginDayIndex[n]:np.size(Temps,1)])
-        minimumDiurnalSurfTemps[n] = np.nanmin(Temps[0, beginDayIndex[n]:np.size(Temps,1)])
-        T_reg_Diurnal[:, n] = np.mean(T_regs[:, beginDayIndex[n]:np.size(Temps,1)], 1)
-    else:
-        averageDiurnalTemps[:,n] = np.mean(Temps[:, beginDayIndex[n]:beginDayIndex[n+1]-1], 1)
-        averageDiurnalSurfTemps[n] = np.nanmean(Temps[0, beginDayIndex[n]:beginDayIndex[n+1]-1])
-        minimumDiurnalSurfTemps[n] = np.nanmin(Temps[0, beginDayIndex[n]:beginDayIndex[n+1]-1])
-        T_reg_Diurnal[:, n] = np.mean(T_regs[:, beginDayIndex[n]:beginDayIndex[n+1]-1], 1)
-
-
-averageDiurnalAllTemps = np.concatenate((averageDiurnalSurfTemps.reshape(1,numDays), averageDiurnalTemps))
-
-
-#%% Calculate ice table/top of subsurface layer temperatures
-numPropLayers = np.size(ktherm)
-#iceTableIndex = 2
-if numPropLayers > 1:
-    
-    iceTableTemps = (ktherm[iceTableIndex]*dz[iceTableIndex-1]*Temps[iceTableIndex,:] + ktherm[iceTableIndex-1]*dz[iceTableIndex]*Temps[iceTableIndex-1,:])/(ktherm[iceTableIndex]*dz[iceTableIndex-1] + kappa[iceTableIndex-1]*dz[iceTableIndex])
-    iceTableTemps = iceTableTemps
-    
-    iceTable_Pv = 611 * np.exp( (-51058/8.31)*(1/iceTableTemps - 1/273.16) ) # compute vapor pressure at ice table
-    iceTable_rhov = iceTable_Pv * (0.01801528 / 6.022140857e23) / (1.38064852e-23 * iceTableTemps); # compute vapor densities at ice table
-    
-    meanIceTable_Pv = np.nanmean(iceTable_Pv) # get mean for that year of ice table vapor pressures
-    meanIceTable_rhov = np.nanmean(iceTable_rhov) # get mean for that year of ice table vapor densities
-    meanIceTableT = np.nanmean(iceTableTemps) # mean temperature at the ice table over the year
-    meansurfT = np.nanmean(Tsurf) # mean surface temperature
-
-#%% Equation 4 from Bramson 2019
-def retreat(D, iceVapRho, atmRho, z, d, rhoIce):
-    # z is , d is dsut fraction
-    return (D*(iceVapRho-atmRho))/(z*(1-d)*rhoIce)
-Dreg = 3*10**(-4) # m2/s
-rhoIce = 920 # kg/m3
-waterVapDensity = 0.013 #kg/m3 (google)
-dust = 3/100 #(Grima et al.)
-'''
-atmo_rhov = 
-
-R = retreat(Dreg, iceTable_rhov, atmo_rhov, lag, dust, rhoIce)
-#%% This idoes not work
-def convective_loss(mol_mass, T_bl, A, u_wind, esat, e, del_eta, rho_Ave, D_at, del_rho, rho, v, g, rhoIce):
-    m_forced = mol_mass * (1/(kb*T_bl)) * A * u_wind * (esat - e) * rhoIce
-    m_free =  0.14 * del_eta * rho_Ave * D_at * ((del_rho/rho) * (g/v**2) * (v/D_at))**(1/3)
-    msub = m_forced+m_free
-    return msub
-
-water_mol = m_gas_h2o/NA
-
-b = 0.2
-Tatm = minimumDiurnalSurfTemps**b * T_reg_Diurnal**(1-b)
-atmwater = np.linspace(0, 1, 670)
-#%%
-#tm_density = pressure/R_gas* T # 700 Pa (cO2) and water from e. 
-#dh = (iceTable_rhov - 0.013)/atm__density
-# rho_a
-def diffusion_coeff(Tbl, Patm):
-    return (1.387*10**(-5))*(Tbl/273.15)**(3/2)*(10**5/Patm)
-Dat = diffusion_coeff(Tbl, Patm) # diffusion coefficient of H2O in CO2
-def kinematic_viscosity(R, Tbl, mc, Patm):
-    # R, mc = universal gas const, molar mass co2 0.044 kg
-    return (1.48*10**(-5))*(R*Tbl/(mc*Patm))*(240+293.15/(240+Tbl))*(Tbl/293.15)**(3/2)
-v = kinematic_viscosity(R, Tbl, mc, Patm) # kinematice viscosity ?
-
-def rho_ratio(mc, mw, esat, Patm):
-    # mc, mw, 0.044 kg, 0.018 kg.
-    return ((mc-mw)*esat)/(mc*Patm - (mc-mw)*esat)
-del_rho = rho_ratio(mc, mw, iceTable_Pv, Patm) # atmospheric and surface gas density difference
-
-convective_loss(water_mol, np.average(averageDiurnalSurfTemps, Tatm), 0.002, 2.5, iceTable_Pv, atmwater, dh, rho_a, Dat,  )
 
 
 
-
-
-'''
 
 
 
