@@ -259,3 +259,41 @@ convective_loss(water_mol, np.average(averageDiurnalSurfTemps, Tatm), 0.002, 2.5
 
 
 '''
+
+#%%
+import numpy as np
+
+R_gas = 8.3145                      # J/mol K
+
+def mean_gas_const(f1, m1, f2, m2, f3, m3):
+    mbar = f1*m1+f2*m2+f3*m3
+    return R_gas/mbar
+
+def clapyeron(triple_pressure, triple_T, R_bar, Lc, T):
+    # Pascal
+    return triple_pressure*np.exp( (Lc/R_bar) * ((1/triple_T) - (1/T)))
+
+# Molecules
+hydrogen = 1.004                    # g/mol
+oxygen = 15.999                     # g/mol
+m_gas_h2o = (hydrogen*2+oxygen)/1000    # kg/mol
+m_gas_h2o_molar = m_gas_h2o*1000        # g/mol
+R_bar = mean_gas_const(1, m_gas_h2o, 0, 0, 0, 0)    #J/kgK
+
+# Molecule - Water
+triple_T = 273.1575                 # K
+triple_P = 611.657                  # Pa 
+triple_P_bar = triple_P * 10**(-5)  # bar (still doesn't wokr. )
+Latent_heat = 2.834*10**6 #3340720               # J/kg - is this wrong
+
+# define sublimation
+def sublimation(alpha, ps, T, mu):
+    # kg/m2 s
+    E = alpha*ps*np.sqrt(mu/(2*np.pi*R_gas*T))
+    return E
+
+alpha = 1
+ps = clapyeron(triple_P, triple_T, R_bar, Latent_heat, Tsurf)
+mu = m_gas_h2o
+equ_1 = sublimation(alpha, ps, Tsurf, mu)
+

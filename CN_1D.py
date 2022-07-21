@@ -19,52 +19,17 @@ from scipy import constants as const
 from scipy import sparse
 from scipy.sparse.linalg import spsolve
 import time
-import json
 
-# ** Import custom Libraries **
-import Orbital_Parameters as op
-import Make_Layers as ml
 
 # ** Define things needed to run **    
 loc = '/Users/laferrierek/Box Sync/Desktop/Mars_Troughs/Project_MCMC/Thermal_model_KLL/'
 
 #%% Constants - From files and basic.
 
-class Profile:
-  def reader(self,input_dict,*kwargs):
-    for key in input_dict:
-      try:
-        setattr(self, key, input_dict[key])
-      except:
-        print("no such attribute, please consider add it at init")
-        continue
-    
-    
-with open(loc+"data/Trough_slope_02_9.json",'r') as file:
-    a=file.readlines()
-Mars_Trough=Profile()
-Mars_Trough.reader(json.loads(a[0]))
-
-
-with open(loc+'data/Trough_flat_00.json','r') as file:
-    a = file.readlines()
-flat_Mars_Trough=Profile()
-flat_Mars_Trough.reader(json.loads(a[0]))
-
-
-with open(loc+"data/Layers_Bramson2019.json",'r') as file:
-    a=file.readlines()
-bramson=Profile()
-bramson.reader(json.loads(a[0]))
-    
-
-# Constants
+# Constants - which of these are needed here?
 G = 6.67259*10**(-11)       # Gravitational Constant; m3/kg/s2
 NA = 6.022 * 10**(23)       # Avogadros number, per mol
-h = const.h                 # Planck's constant;  Js
-c = const.c                 # Speed of light; meters/second
 k = const.k                 # Boltzmann constant;  J/K
-b = 2.89777199*10**(-3)     # ?; meters
 sigma = 5.670*10**(-8)      # Stefan-Boltzmann; W/m^2K^4
 au = 1.4959787061e11        # AU; meters
 sm  = 1.9891e30             # Solar Mass; kg
@@ -100,14 +65,6 @@ MarsyearLength = 2*np.pi/np.sqrt(G*sm/(Mars_semimajor*au)**3)   # Length of Mars
 MarsyearLength_days = 668.6
 MarsdayLength = 88775 
 solarflux_at_Mars = solarflux_at_1AU/Mars_semimajor**2
-
-# Thermal (Bramosn et al. 2017, JGR Planets)
-# compositional values - this may need to be read in
-# Orbital solutions
-eccentricity = 0.09341233
-obl = np.deg2rad(25.19)
-Lsp = np.deg2rad(250.87)
-dt_orb = 500
 
 # Surface conditions
 #"""
@@ -146,15 +103,18 @@ def thermal_diffusivity_calc(k, rho, cp):
     return k/(rho*cp)
 
 def thermal_skin_depth(k, rho, cp, P):
+    #not used here
     thermal_diff = thermal_diffusivity_calc(k, rho, cp)
     skin = np.sqrt(4*np.pi*thermal_diff*P)
     return skin
     
 def surface_enegry_balance(Solar, incidence_angle, albedo, dmco2_dt, dTemp_dz, IR_downwelling):
+    # not used in this
     T_surface = ((Solar*np.cos(incidence_angle)*(1-albedo)+Lc_CO2 * dmco2_dt +k*dTemp_dz*IR_downwelling)/(emissivity*sigma))**(1/4)
     return T_surface
 
 def stability_depth(triple_pressure, triple_T, Lc, T, f1, m1, rho_atmo, layer_depth):
+    # not used
     R_bar = mean_gas_const(f1, m1, 0, 0, 0, 0)
     pressure_sublimation = clapyeron(triple_pressure, triple_T, R_bar, Lc, T)
     rho_vapor = pressure_sublimation/(R_bar*T)
@@ -220,34 +180,14 @@ def diurnal_average(hr, Temps, T_regs, nLayers):
     averageDiurnalAllTemps = np.concatenate((averageDiurnalSurfTemps.reshape(1,numDays), averageDiurnalTemps))
     return averageDiurnalAllTemps
     
-        
-
-# - Plots
-def plot_layers(layer_depth, layer_number, layer_thickness):
-    plt.rc("font", size=18, family="serif")
-    plt.figure(figsize=(10,10), dpi=res)
-    subsurface = np.linspace(0, np.nanmax(layer_depth)+5, (np.int(np.nanmax(layer_depth)+5)))
-    image = np.ones((np.int(np.nanmax(layer_depth)+5), 20))*np.reshape(subsurface, ((np.int(np.nanmax(layer_depth)+5)), 1))
-    layer_number = np.arange(1, 16, 1)
-    plt.imshow(image, vmin=0, vmax=(np.int(np.nanmax(layer_depth)+5)), cmap='summer')
-    plt.colorbar(label='Depth (cm)')
-    plt.scatter(np.ones((15))*10, layer_depth, c='k', marker='o')
-    for i in range(0, 15):
-        plt.annotate('%2.0f'%(layer_number[i]), (10.5, layer_depth[i]+0.5))
-    plt.hlines(layer_thickness/2+layer_depth, 0, 20, colors='k', linestyle='dashed')
-    plt.hlines(layer_depth[0]-layer_thickness[0]/2, 0, 20, colors='r', linestyle='dashed')
-    plt.ylim((-0.1, (np.int(np.nanmax(layer_depth)+3))))
-    plt.xlim((0, 19))
-    plt.gca().invert_yaxis()
-    plt.show()
 
 # - Main focus
-def Crank_Nicholson(nLayers, nStepsInYear, windupTime, runTime, ktherm, dz, dt, rho, cp, emissivity, Tfrost, Tref, depthsAtMiddleOfLayers):
+def Crank_Nicholson(nLayers, nStepsInYear, windupTime, runTime, ktherm, dz, dt, rho, cp, kappa, emissivity, Tfrost, Tref, depthsAtMiddleOfLayers, sf, visScattered, sky, IRdown, flatVis, flatIR):
     Temps = np.zeros((nLayers, nStepsInYear))
     Tsurf = np.zeros((nStepsInYear))
     lastTimestepTemps = np.zeros((nLayers, runTime))
     oldTemps = np.zeros((nLayers))
-        
+    
     frostMass = 0
     frostMasses = np.zeros((nStepsInYear))
     
@@ -283,6 +223,8 @@ def Crank_Nicholson(nLayers, nStepsInYear, windupTime, runTime, ktherm, dz, dt, 
     beta = ktherm[0]*dt/(rho[0]*cp[0]*dz[0]*dz[0])
             
     # Total fluxes
+    # requires: soldist, sf, IRdown, visScattered, nStepsInYear, lsWrapped, hr, ltst, lsrad, az, sky, flatVis, flatIR = op.orbital_params(ecc, obl, Lsp, dt_orb, flat_Mars_Trough)
+    
     Fin = (sf + visScattered*sky + flatVis*(1-sky))*(1-albedo) + (IRdown*sky + flatIR*(1-sky))*emissivity;
     Fin_frost = (sf + visScattered*sky +flatVis*(1-sky))*(1-albedoFrost)+(IRdown*sky + flatIR*(1-sky))*emisFrost
     Fin_i = (np.roll(sf, -1) + np.roll(visScattered, -1)*sky + np.roll(flatVis, -1)*(1-sky))*(1-albedo) + (np.roll(IRdown, -1)*sky + np.roll(flatIR, -1)*(1-sky))*emissivity
@@ -386,7 +328,7 @@ def Crank_Nicholson(nLayers, nStepsInYear, windupTime, runTime, ktherm, dz, dt, 
 
 
 #%% Plot checks - i think temperature issues are rleated to the layer formation - not the thermal conductivity. 
-def plot_checks_CN(Temps, windupTemps, finaltemps,Tsurf, frostMasses, depthAtMiddleOfLayers, daily_depth, annual_depth):
+def plot_checks_CN(Temps, windupTemps, finaltemps,Tsurf, frostMasses, depthsAtMiddleOfLayers, daily_depth, annual_depth, hr, nLayers):
     # Create diurnal averages throughout the last year
     beginDayIndex = np.zeros((670))*np.nan
     beginDayIndex[0] = 0
@@ -427,9 +369,9 @@ def plot_checks_CN(Temps, windupTemps, finaltemps,Tsurf, frostMasses, depthAtMid
     plt.show()
 
     # show avearge Diurnal results.     
-    fig = plt.figure(figsize=(5, 5), dpi=300)
+    plt.figure(figsize=(5, 5), dpi=300)
     for i, c in zip(range(0, 669, days), color):
-        im = plt.plot(averageDiurnalAllTemps[1:, i], depthsAtMiddleOfLayers, c=c) 
+        plt.plot(averageDiurnalAllTemps[1:, i], depthsAtMiddleOfLayers, c=c) 
     plt.xlim((0, 250))
     plt.ylim((0, 3))
     plt.gca().invert_yaxis()
@@ -446,7 +388,7 @@ def plot_checks_CN(Temps, windupTemps, finaltemps,Tsurf, frostMasses, depthAtMid
     st_i = 400
     st_e = 402
     ltst =  hr * (180/(np.pi*15))
-    daily = np.argwhere(depthsAtMiddleOfLayers >= daily_depth[0])[0]
+    daily = np.argwhere(depthsAtMiddleOfLayers >= daily_depth)[0]
     print(daily)
     plt.scatter(ltst[beginDayIndex[st_i]:beginDayIndex[st_e]], Temps[0, beginDayIndex[st_i]:beginDayIndex[st_e]], s=2, c='r', label='Surface')
     plt.scatter(ltst[beginDayIndex[st_i]:beginDayIndex[st_e]], Temps[daily, beginDayIndex[st_i]:beginDayIndex[st_e]], s=2, c='g', label='Skin depth diurnal')
@@ -468,7 +410,7 @@ def plot_checks_CN(Temps, windupTemps, finaltemps,Tsurf, frostMasses, depthAtMid
 
     ltst =  hr * (180/(np.pi*15))
     day_ar = np.arange(0, numDays, 1)
-    annual = np.argwhere(depthsAtMiddleOfLayers >= annual_depth[-1])[0]
+    annual = np.argwhere(depthsAtMiddleOfLayers >= annual_depth)[0]
     print(annual)
     plt.scatter(day_ar, averageDiurnalAllTemps[1, :], s=2, c='r', label='Surface')
     plt.scatter(day_ar, averageDiurnalAllTemps[annual, :], s=2, c='g', label='Annual skin')
@@ -487,19 +429,25 @@ def plot_checks_CN(Temps, windupTemps, finaltemps,Tsurf, frostMasses, depthAtMid
     
     return averageDiurnalAllTemps
 
-avgT = plot_checks_CN(Temps, windupTemps, finaltemps,Tsurf, frostMasses, depthsAtMiddleOfLayers, diurnal_depth, annual_depth)
+# - Plots
+def plot_layers(layer_depth, layer_number, layer_thickness):
+    plt.rc("font", size=18, family="serif")
+    plt.figure(figsize=(10,10), dpi=360)
+    subsurface = np.linspace(0, np.nanmax(layer_depth)+5, (np.int(np.nanmax(layer_depth)+5)))
+    image = np.ones((np.int(np.nanmax(layer_depth)+5), 20))*np.reshape(subsurface, ((np.int(np.nanmax(layer_depth)+5)), 1))
+    layer_number = np.arange(1, 16, 1)
+    plt.imshow(image, vmin=0, vmax=(np.int(np.nanmax(layer_depth)+5)), cmap='summer')
+    plt.colorbar(label='Depth (cm)')
+    plt.scatter(np.ones((15))*10, layer_depth, c='k', marker='o')
+    for i in range(0, 15):
+        plt.annotate('%2.0f'%(layer_number[i]), (10.5, layer_depth[i]+0.5))
+    plt.hlines(layer_thickness/2+layer_depth, 0, 20, colors='k', linestyle='dashed')
+    plt.hlines(layer_depth[0]-layer_thickness[0]/2, 0, 20, colors='r', linestyle='dashed')
+    plt.ylim((-0.1, (np.int(np.nanmax(layer_depth)+3))))
+    plt.xlim((0, 19))
+    plt.gca().invert_yaxis()
+    plt.show()
+
+
+#avgT = plot_checks_CN(Temps, windupTemps, finaltemps,Tsurf, frostMasses, depthsAtMiddleOfLayers, diurnal_depth, annual_depth)
 # write a save file
-
-
-
-
-
-
-
-
-
-
-
-
-
-

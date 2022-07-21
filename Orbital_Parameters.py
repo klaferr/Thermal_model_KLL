@@ -22,7 +22,7 @@ loc = '/Users/laferrierek/Box Sync/Desktop/Mars_Troughs/Project_MCMC/Thermal_mod
 #%% Functions
     
 def surface_properties(slope, s, sloperad, lsrad):
-    
+    """ why does this exist """
     # If sloped and the parameter file is set to first calculate reradiation
     # from nearby terrain based on flat values, then load in those values.
     if s.Slope != 0 and s.Slope_rerad == 1:
@@ -108,7 +108,7 @@ def high_res_true_anomly(dt, ecc, s):
     return TA2, EA2, t2, nStepsInYear, yearLength
 
 
-def orbital_params(ecc, obl, Lsp, dt, s):
+def orbital_params(ecc, obl, Lsp, dt, s, trough_num):
     
     TA2, EA2, t2, nStepsInYear, yearLength = high_res_true_anomly(dt, ecc, s)
     sol_dist = s.Semimajor_Axis*(1-ecc*np.cos(EA2))
@@ -136,7 +136,6 @@ def orbital_params(ecc, obl, Lsp, dt, s):
     hr = ((t2/s.Rotation_rate * 2*np.pi) % (2*np.pi) ) - np.pi
     ltst = hr * (180/(np.pi*15)) +12
     
-
     cosi = np.sin(latrad) * sin_dec + np.cos(latrad)*cos_dec*np.cos(hr)
     
     cosi[cosi < -1.0] = -1.0
@@ -171,11 +170,10 @@ def orbital_params(ecc, obl, Lsp, dt, s):
     #print('Solar Flux Min = %8.4f, Max = %8.4f and Mean = %8.4f [W/m^2]' %(min(sf), max(sf), np.average(sf)))
     #print ('Total Annual Solar Flux = %.6e [W/m^2] ' %annual_sf)
 
-    
     # Add in extinction due to atmospheric attenuation, as is in Schorghofer
     # and Edgett 2006 and Aharonson and Schorghofer 2006
     # this breaks because cosi_slope is an array. 
-    #maxCoefAtmosAtt = np.array([np.nanmax((np.sin(np.pi/2 - np.arccos(cosi[i])), 0.04)) if s.Slope==0 else np.nanmax((np.sin(np.pi/2 - np.arccos(cosi_slope[i])), 0.04)) for i in range(np.size(cosi))])
+    # maxCoefAtmosAtt = np.array([np.nanmax((np.sin(np.pi/2 - np.arccos(cosi[i])), 0.04)) if s.Slope==0 else np.nanmax((np.sin(np.pi/2 - np.arccos(cosi_slope[i])), 0.04)) for i in range(np.size(cosi))])
     
     maxCoefAtmosAtt = np.zeros((np.size(cosi)))
     
@@ -208,16 +206,14 @@ def orbital_params(ecc, obl, Lsp, dt, s):
     #visScattered = 0.5 * s.scatteredVisPerc * sfTOA
     visScattered =  s.scatteredVisPerc * sf
 
-    sky = np.cos(sloperad/2)**2
     if s.Slope != 0:
         sky = np.cos(np.deg2rad(s.Slope)/2)**2
-        # Ali - load(s.flatSavedFile);
-        flatVis = np.loadtxt(loc+'data/flatVis_Saved_Trough1.txt', delimiter=',')
-        #flatVis = np.zeros((nStepsInYear))
-        flatIR = np.zeros((nStepsInYear))
+        flatVis, flatIR = np.loadtxt(loc+'data/flatVis_Saved_Trough_%1.0f.txt'%(trough_num), delimiter=',')
+        # will need to change this to make it easier to run, 
     else:
         flatVis = np.zeros((nStepsInYear))
         flatIR = np.zeros((nStepsInYear))
         sky = 1
+
 
     return sol_dist, sf, IRdown, visScattered, nStepsInYear, lsWrapped, hr, ltst, lsrad, az, sky, flatVis, flatIR
