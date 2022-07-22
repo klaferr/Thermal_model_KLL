@@ -208,7 +208,7 @@ def orbital_params(ecc, obl, Lsp, dt, s, trough_num):
 
     if s.Slope != 0:
         sky = np.cos(np.deg2rad(s.Slope)/2)**2
-        flatVis, flatIR = np.loadtxt(loc+'data/flatVis_Saved_Trough_%1.0f.txt'%(trough_num), delimiter=',')
+        flatVis, flatIR = np.loadtxt(loc+'data/flatVis_Saved_Trough_%1.0f.txt'%(trough_num), delimiter=',', unpack=True)
         # will need to change this to make it easier to run, 
     else:
         flatVis = np.zeros((nStepsInYear))

@@ -35,24 +35,24 @@ plt.rc("font", size=18, family="serif")
 plt.style.use('ggplot')
 #%%
 
-def flat_save(nStepsInYear, frostMasses, emisFrost, emis, sigmasb, Tsurf, Afrost, A, sf, trough_num):
-    flatIR = np.zeros((nStepsInYear))
-    flatVis = np.zeros((nStepsInYear))
+def flat_save(nStepsInYear, frostMasses, emisFrost, emis, sigma, Tsurf, Afrost, A, sf, trough_num):
+    flatIR = np.zeros((nStepsInYear))*np.nan
+    flatVis = np.zeros((nStepsInYear))*np.nan
     for n in range(1, nStepsInYear):
         if frostMasses[n] > 0:
-           flatIR[n] = emisFrost * sigmasb * Tsurf[n-1]**4
+           flatIR[n] = emisFrost * sigma * Tsurf[n-1]**4
            flatVis[n] = Afrost * sf[n]
         else:
-           flatIR[n] = emis * sigmasb * Tsurf[n-1]**4
+           flatIR[n] = emis * sigma * Tsurf[n-1]**4
            flatVis[n] = A * sf[n]
 
-    if frostMasses[1] > 0:
-        flatIR[1] = emisFrost * sigmasb * Tsurf[-1]**4
-        flatVis[1] = Afrost * sf[0]
+    if frostMasses[0] > 0:
+        flatIR[0] = emisFrost * sigma * Tsurf[-1]**4
+        flatVis[0] = Afrost * sf[0]
     else:
-        flatIR[1] = emis * sigmasb * Tsurf[-1]**4
-        flatVis[1] = A * sf[0]
-    np.savetxt(loc+'data/flatVis_saved_Trough_%1.0f'%trough_num, np.vstack((flatIR, flatVis)).T)
+        flatIR[0] = emis * sigma * Tsurf[-1]**4
+        flatVis[0] = A * sf[0]
+    np.savetxt(loc+'data/flatVis_saved_Trough_%1.0f.txt'%trough_num, np.vstack((flatIR, flatVis)).T, delimiter=',')
     return
 
 #%% Constants - From files and basic.
@@ -177,22 +177,23 @@ if __name__ == "__main__":
     
     print('Step 3: Run for flat, save')    
     #if flatvis_saved_trough1.txt doesn't exist:
-    trough_num = 1
+    trough_num = 2
 
-    path_to_file = loc+'data/flatVis_saved_Trough_%1.0f.txt'%(trough_num)
+    path_to_file = loc+'data/flatVis_Saved_Trough_%1.0f.txt'%(trough_num)
     path = Path(path_to_file)
     if path.is_file():
-        flatIR, flatVis = np.loadtxt(path_to_file, unpack='True')
+        flatIR, flatVis = np.loadtxt(path_to_file, unpack='True', delimiter=',')
     else:
         soldist, sf, IRdown, visScattered, nStepsInYear, lsWrapped, hr, ltst, lsrad, az, sky, flatVis, flatIR = op.orbital_params(ecc, obl, Lsp, dt_orb, flat_Mars_Trough, trough_num)
+        np.savetxt(loc+'data/raw_flat_Saved_Trough_%1.0f.txt'%(trough_num), np.vstack((IRdown, visScattered)).T, delimiter=',')
         fTemps, fwindupTemps, ffinaltemps, fTsurf, ffrostMasses = cn.Crank_Nicholson(nLayers, nStepsInYear, windupTime, runTime, ktherm, dz, dt, rho, cp, kappa, emissivity, Tfrost, Tref, depthsAtMiddleOfLayers, sf, visScattered, sky, IRdown, flatVis, flatIR) 
         flat_save(nStepsInYear, ffrostMasses, emisFrost, emissivity, sigma, fTsurf, albedoFrost, albedo, sf, trough_num)
 
     # write a save file
     #np.savetxt('CN_flat_Trough1.txt', T_regs, delimiter=',', header='Temp (K) for flat')
-    
+    #%%
     print("Step 3: Run for real slope")
-    soldist, sf, IRdown, visScattered, nStepsInYear, lsWrapped, hr, ltst, lsrad, az, sky, flatVis, flatIR = op.orbital_params(ecc, obl, Lsp, dt_orb, Mars_Trough)
+    soldist, sf, IRdown, visScattered, nStepsInYear, lsWrapped, hr, ltst, lsrad, az, sky, flatVis, flatIR = op.orbital_params(ecc, obl, Lsp, dt_orb, Mars_Trough, trough_num)
     Temps, windupTemps, finaltemps, Tsurf, frostMasses = cn.Crank_Nicholson(nLayers, nStepsInYear, windupTime, runTime, ktherm, dz, dt, rho, cp, kappa, emissivity, Tfrost, Tref, depthsAtMiddleOfLayers, sf, visScattered, sky, IRdown, flatVis, flatIR)
     
     print("Step 4: return last year values")
