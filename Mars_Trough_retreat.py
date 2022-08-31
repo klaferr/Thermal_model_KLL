@@ -177,7 +177,7 @@ if __name__ == "__main__":
     #outputretreat = np.ones((np.int64((time_stop-time_start)/time_step), 9))*np.nan
     outputretreat = np.ones((np.int64((time_stop-time_start)/time_step), 9))*np.nan
     header_line = ['timebeforepresent, ecc, oblDeg, Lsp_rad, meanTsurf, atmosPressSF12, TotalForced, TotalFree, TotalSublimation']
-    filename = loc+'data/'+ 'Retreat_saved_Trough_Tr{:0>2}'.format(trough_num) + '.txt'
+    filename = loc+'data/'+ 'Retreat_saved_Trough_Tr{:0>2}'.format(trough_num) + '.txt' # these needs a new name, stop overwriting
         
     f = open(filename, 'w')
     fwriter=csv.writer(f)
@@ -282,8 +282,6 @@ if __name__ == "__main__":
         outputretreat[np.int64(timef/time_step), :] = np.array(([timebeforepresent, ecc, np.rad2deg(obl), Lsp, meanTsurf, atmoPressure, TotalForced_Eyr, TotalFree_Eyr, TotalSublimation_Eyr])).T
         
         fwriter.writerow(outputretreat[np.int64(timef/time_step), :])
-        toc = time.time()
-
     
 
     print("Step 10: make retreat table")
