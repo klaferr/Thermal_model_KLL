@@ -29,8 +29,8 @@ loc = '/Users/laferrierek/Box Sync/Desktop/Mars_Troughs/Project_MCMC/Thermal_mod
 test_run = True
 trough_num = 2 # ask for trough number
 # for a test run, do:
-time_stop = 1
-time_start = 0
+time_stop = 110
+time_start = 10
 time_step = 1
 
 #%% Functions

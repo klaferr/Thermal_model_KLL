@@ -1,2 +1,0 @@
-"timebeforepresent, ecc, oblDeg, Lsp_rad, meanTsurf, atmosPressSF12, TotalForced, TotalFree, TotalSublimation"
-0.0,0.0933,25.21014298575622,-1.9015926535897931,154.16063362022086,0.0,0.0,0.0,0.0
