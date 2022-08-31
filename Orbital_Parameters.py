@@ -5,18 +5,17 @@
 import numpy as np
 import math 
 from scipy.interpolate import PchipInterpolator
+from constants_MT import au, G, sm
 
 # Constants
-au = 1.4959787061e11    # meters
-gc = 6.67259e-11        # Gravitational constal, unit?
-sm  = 1.9891e30         # Solar Mass, kg
 r2d = np.pi/180
-nn=np.int(1e4)
+nn=int(1e4)
 
-# Set to be zero to start
+# Set to be zero to start - do they?? ***
 flatVisSaved = 0 
 flatIRSaved = 0 
 
+# folder
 loc = '/Users/laferrierek/Box Sync/Desktop/Mars_Troughs/Project_MCMC/Thermal_model_KLL/'
 
 #%% Functions
@@ -65,7 +64,7 @@ def low_res_true_anomly(ecc, s):
 
     '''
     # Specific constants
-    yearLength = 2*np.pi/np.sqrt(gc*sm/(s.Semimajor_Axis*au)**3)     # Length of Mars year in seconds using Kepler's 3rd law
+    yearLength = 2*np.pi/np.sqrt(G*sm/(s.Semimajor_Axis*au)**3)     # Length of Mars year in seconds using Kepler's 3rd law
     
     # Evenly spaced
     TA = ((np.arange(0, nn, 1)+0.5)*2*np.pi)/nn
@@ -74,7 +73,7 @@ def low_res_true_anomly(ecc, s):
     # Mean anomalies
     MA = EA - ecc*np.sin(EA)
     # Time along Mars' orbital path (irregular spacing)
-    t = MA/np.sqrt(gc*sm/(s.Semimajor_Axis*au)**3)
+    t = MA/np.sqrt(G*sm/(s.Semimajor_Axis*au)**3)
     t[TA > np.pi] = yearLength - t[TA > np.pi]
     return t, TA, yearLength
 
@@ -108,7 +107,7 @@ def high_res_true_anomly(dt, ecc, s):
     return TA2, EA2, t2, nStepsInYear, yearLength
 
 
-def orbital_params(ecc, obl, Lsp, dt, s, trough_num):
+def orbital_params(ecc, obl, Lsp, dt, s, path_flat):
     
     TA2, EA2, t2, nStepsInYear, yearLength = high_res_true_anomly(dt, ecc, s)
     sol_dist = s.Semimajor_Axis*(1-ecc*np.cos(EA2))
@@ -208,7 +207,7 @@ def orbital_params(ecc, obl, Lsp, dt, s, trough_num):
 
     if s.Slope != 0:
         sky = np.cos(np.deg2rad(s.Slope)/2)**2
-        flatVis, flatIR = np.loadtxt(loc+'data/flatVis_Saved_Trough_%1.0f.txt'%(trough_num), delimiter=',', unpack=True)
+        flatVis, flatIR, fTsurf = np.loadtxt(path_flat, delimiter=',', unpack=True)
         # will need to change this to make it easier to run, 
     else:
         flatVis = np.zeros((nStepsInYear))
