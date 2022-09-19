@@ -329,6 +329,7 @@ def Crank_Nicholson(nLayers, nStepsInYear, windupTime, runTime, ktherm, dz, dt, 
                 Tsurf[n] = Tfrost
                 
                 frostMass = frostMass + (1-f)*(gamma_frost*oldTemps[0] +theta_frost[n]) + f*(gamma_frost*Temps[0, n] + theta_frost_i[n]) 
+
                 if frostMass < 0:
                     shiftedFrostMasses = np.roll(frostMasses, 1)
                     timeDefrosted = np.sqrt((0-frostMass)/shiftedFrostMasses[n] -frostMass)

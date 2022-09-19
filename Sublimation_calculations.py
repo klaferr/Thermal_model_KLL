@@ -175,11 +175,11 @@ def water_scheme_MS22(obl):
 def sublimation_free_forced(Ls0, L04obl, atmofactor, atmoPressSF, SLOPEDaverageDiurnalSurfTemps, REGminDiurnalSurfTemps,REGdiurnalTsurfCurves):
     PPH2O = water_scheme_AMB(Ls0, L04obl, atmoPressSF, 1)
     counter = 1
-    
+
     # Free and forced
     numDays_sublimation = np.size((SLOPEDaverageDiurnalSurfTemps))
     
-    summedForcedDayTotals = np.zeros((numDays_sublimation)) 
+    summedForcedDayTotals = np.zeros((numDays_sublimation))
     summedFreeDayTotals = np.zeros((numDays_sublimation))
     summedDayTotals = np.zeros((numDays_sublimation))
    
@@ -193,16 +193,16 @@ def sublimation_free_forced(Ls0, L04obl, atmofactor, atmoPressSF, SLOPEDaverageD
         T_surf_subl = SLOPEDaverageDiurnalSurfTemps[day]
         
         reg_Tmin = REGminDiurnalSurfTemps[day]
-        reg_all_Tsurfs = REGdiurnalTsurfCurves[0][day]
-        
+        reg_all_Tsurfs = np.array(REGdiurnalTsurfCurves[day])
+             
         numTimesteps_subl = np.size((reg_all_Tsurfs))
-        
+
         diurnal_m_free_thickness = np.zeros((numTimesteps_subl))
         diurnal_m_forced_thickness = np.zeros((numTimesteps_subl))
         
-        for timestep in range(1, numTimesteps_subl):
+        for timestep in range(0, numTimesteps_subl):
             reg_Tsurf = np.float32(reg_all_Tsurfs[timestep])
-
+            
             # Compute Temp
             T_min = reg_Tmin # most recent diurnal minimum surface temp
             T_reg = reg_Tsurf # current surface temp
@@ -217,11 +217,9 @@ def sublimation_free_forced(Ls0, L04obl, atmofactor, atmoPressSF, SLOPEDaverageD
             
             #print("scheme is AMB19")
             e_watvap = PPH2O[counter] # this s where water scheme matters!!
-            
             m_forced = (cT.mass_molecule_h2o/(cT.k*T_subl))*A_drag_coeff * u_wind * (e_sat - e_watvap)
-            
             diurnal_m_forced_thickness[timestep] = (m_forced*dt/cT.density_ice)
-    
+            
             # Sensible heat for free convection (Eq 6 from Dundas et al. 2010)
             rho_surf=  rho_molecules(cT.m_gas_co2, cT.m_gas_h2o, cT.P_atm, e_sat, T_surf_subl)
             rho_atm = rho_molecules(cT.m_gas_co2, cT.m_gas_h2o, cT.P_atm, e_watvap, T_atm_subl)
@@ -246,13 +244,12 @@ def sublimation_free_forced(Ls0, L04obl, atmofactor, atmoPressSF, SLOPEDaverageD
             x = (delta_rho_over_rho*(cT.Mars_g/nu**2)*(nu/Diff_H2OinCO2)) # check sign
             m_free = 0.14*deltaEta * rho_ave * Diff_H2OinCO2 * x**(1/3) # kg/m2?
             diurnal_m_free_thickness[timestep] = m_free * dt / cT.density_ice
-    
+            #print(m_free, dt, cT.density_ice)
         
         summedForcedDayTotals[day] = sum(diurnal_m_forced_thickness)
         summedFreeDayTotals[day] = sum(diurnal_m_free_thickness)
         summedDayTotals[day]= sum(diurnal_m_free_thickness+ diurnal_m_forced_thickness)
-                                        
-    
+        
     TotalFree = sum(summedFreeDayTotals)
     TotalForced = sum(summedForcedDayTotals)
     TotalSublimation = sum(summedDayTotals)

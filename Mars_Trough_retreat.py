@@ -29,8 +29,8 @@ loc = '/Users/laferrierek/Box Sync/Desktop/Mars_Troughs/Project_MCMC/Thermal_mod
 test_run = True
 trough_num = 2 # ask for trough number
 # for a test run, do:
-time_stop = 110
-time_start = 10
+time_stop = 10
+time_start = 0
 time_step = 1
 
 #%% Functions
@@ -201,18 +201,17 @@ if __name__ == "__main__":
         ## check if exists
         path_to_flat = loc+'data/Trough%1.0f/'%trough_num +'flatVis_saved_Trough_Lt{:0>3}'.format(timef) + '_Tr{:0>2}'.format(trough_num) + '.txt'
         path_to_flat2 = loc+'data/Trough%1.0f/'%trough_num +'flatREGmin_saved_Trough_Lt{:0>3}'.format(timef) + '_Tr{:0>2}'.format(trough_num) + '.txt'
-        path_to_flat3 = loc+'data/Trough%1.0f/'%trough_num +'flatREGdi_saved_Trough_Lt{:0>3}'.format(timef) + '_Tr{:0>2}'.format(trough_num) + '.txt'
+        path_to_flat3 = loc+'data/Trough%1.0f/'%trough_num +'flatREGdi_saved_Trough_Lt{:0>3}'.format(timef) + '_Tr{:0>2}'.format(trough_num) + '.npy'
 
-        path = Path(path_to_flat)
+        path = Path(path_to_flat3)
         if path.is_file():
             print('Files found.')
             flatIR, flatVis, fTsurf = np.loadtxt(path_to_flat, unpack='True', delimiter=',')
             REGmin = np.loadtxt(path_to_flat2, unpack='True', delimiter=',')
-            with open(path_to_flat3, "r") as csv_file:
-                reader = csv.reader(csv_file, delimiter=',')
-                REGdiurnal = []
-                for line in reader:
-                    REGdiurnal.append(np.array((line)))
+            with open(path_to_flat3, "rb") as file:
+                REGdiurnal_rs = np.load(file, allow_pickle=True)
+            REGdiurnal = REGdiurnal_rs.reshape(670)
+            # check why this changes length
 
         else:
             print('Did not exist:'+ path_to_flat)
@@ -220,16 +219,14 @@ if __name__ == "__main__":
 
             fTemps, fwindupTemps, ffinaltemps, fTsurf, ffrostMasses = cn.Crank_Nicholson(nLayers, nStepsInYear, windupTime, runTime, ktherm, dz, dt, rhoc, kappa, emissivity, Tfrost, Tref, depthsAtMiddleOfLayers, sf, visScattered, sky, IRdown, flatVis, flatIR) 
             flat_save(nStepsInYear, ffrostMasses, emisFrost, emissivity, cT.sigma, fTsurf, fTemps, albedoFrost, albedo, sf, trough_num, timef, path_to_flat)
-                       
-            REGmin, REGdiurnal = cn.diurnal_average(hr,fTsurf, 0)
+                     
+            REGmin, REGdiurnal_rs = cn.diurnal_average(hr,fTsurf, 0)
             REGmin = REGmin[0]
+            REGdiurnal = REGdiurnal_rs.reshape(670)
             
             np.savetxt(path_to_flat2, REGmin.T, delimiter=',')
-
-            with open(path_to_flat3, "w") as csv_file:
-                writer = csv.writer(csv_file, delimiter=',')
-                for line in REGdiurnal:
-                    writer.writerow(line)      
+            with open(path_to_flat3, "wb") as file:
+                np.save(file, REGdiurnal)
             print('flat files ran and saved')
 
         print("Step 6: Run for real slope")
@@ -279,7 +276,7 @@ if __name__ == "__main__":
         meanTsurf = np.mean(TsurfLs0)
 
         print("Step 9; Output retreat info")
-        outputretreat[np.int64(timef/time_step), :] = np.array(([timebeforepresent, ecc, np.rad2deg(obl), Lsp, meanTsurf, atmoPressure, TotalForced_Eyr, TotalFree_Eyr, TotalSublimation_Eyr])).T
+        outputretreat[np.int64(timef/time_step), :] = np.array(([timebeforepresent, ecc, np.rad2deg(obl), np.rad2deg(Lsp), meanTsurf, atmoPressure, TotalForced_Eyr, TotalFree_Eyr, TotalSublimation_Eyr])).T
         
         fwriter.writerow(outputretreat[np.int64(timef/time_step), :])
     
