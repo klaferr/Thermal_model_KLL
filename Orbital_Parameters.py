@@ -19,6 +19,7 @@ flatIRSaved = 0
 loc = '/Users/laferrierek/Box Sync/Desktop/Mars_Troughs/Project_MCMC/Thermal_model_KLL/'
 
 #%% Functions
+
     
 def surface_properties(slope, s, sloperad, lsrad):
     """ why does this exist """
@@ -97,7 +98,7 @@ def high_res_true_anomly(dt, ecc, s):
         numTimesteps = numTimesteps - round((((lmstBeginAndEnd[-1]-lmstBeginAndEnd[0] + 24) % 24)/24.0 * s.Rotation_rate/dt))
     
     #calculations
-    t2 = ((np.arange(0, numTimesteps-2, 1)) + 0.5)*dt
+    t2 = ((np.arange(0, numTimesteps-1, 1)) + 0.5)*dt
     nStepsInYear = np.size(t2)
 
     f = PchipInterpolator(t, TA, extrapolate=True)
@@ -164,7 +165,7 @@ def orbital_params(ecc, obl, Lsp, dt, s, path_flat):
         cosi[np.argwhere(cosi < 0)] = 0 
         sf = f1au/(sol_dist**2) * cosi
     
-    annual_sf = sum(sf*dt)   # Total annual energy
+    #annual_sf = sum(sf*dt)   # Total annual energy
     #print('Without atmosphere extinction')
     #print('Solar Flux Min = %8.4f, Max = %8.4f and Mean = %8.4f [W/m^2]' %(min(sf), max(sf), np.average(sf)))
     #print ('Total Annual Solar Flux = %.6e [W/m^2] ' %annual_sf)
@@ -183,13 +184,13 @@ def orbital_params(ecc, obl, Lsp, dt, s, path_flat):
             maxCoefAtmosAtt[i] = max((np.sin(np.pi/2 - np.arccos(cosi_slope[i])), 0.04))
     
     atmosAtt = (1-s.scatteredVisPerc-s.downwellingPerc)**(1/maxCoefAtmosAtt)
-
     sfTOA = sf
     sf = sf*atmosAtt
+
     
     annual_sf = sum(sf*dt)   # Total annual energy
-    #print('Solar Flux Min = %8.4f, Max = %8.4f and Mean = %8.4f [W/m^2]' %(min(sf), max(sf), np.average(sf)))
-    #print ('Total Annual Solar Flux = %.6e [W/m^2] ' %annual_sf)
+    print('Solar Flux Min = %8.4f, Max = %8.4f and Mean = %8.4f [W/m^2]' %(min(sf), max(sf), np.average(sf)))
+    print ('Total Annual Solar Flux = %.6e [W/m^2] ' %annual_sf)
     
     # Daily noontime flux and the value of this to be used for downwelling IR
     # radiation. Gets modified for sloped cases below.
@@ -203,7 +204,7 @@ def orbital_params(ecc, obl, Lsp, dt, s, path_flat):
     # 1/2 factor in front for half scattered towards ground, half scattered
     # towards space
     #visScattered = 0.5 * s.scatteredVisPerc * sfTOA
-    visScattered =  s.scatteredVisPerc * sf
+    visScattered =  0.5 * s.scatteredVisPerc * sfTOA
 
     if s.Slope != 0:
         sky = np.cos(np.deg2rad(s.Slope)/2)**2
@@ -214,5 +215,6 @@ def orbital_params(ecc, obl, Lsp, dt, s, path_flat):
         flatIR = np.zeros((nStepsInYear))
         sky = 1
 
-
     return sol_dist, sf, IRdown, visScattered, nStepsInYear, lsWrapped, hr, ltst, lsrad, az, sky, flatVis, flatIR
+
+

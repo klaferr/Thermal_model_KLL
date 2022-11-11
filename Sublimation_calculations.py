@@ -26,15 +26,15 @@ A_drag_coeff = 0.002
 u_wind = 2.5 # Dundas 2010
 
 # Surface conditions
-albedo = 0.25
-emissivity = 1.0
+#albedo = 0.4 # 0.25
+#emissivity = 1.0
 Q = 0.03 #30*10**(-3) # W/m2
-Tref = 250
+#Tref = 250
 
 # Frost
-emisFrost = 0.95
-albedoFrost = 0.6
-Tfrost = cT.CO2_FrostPoints
+#emisFrost = 0.95
+#albedoFrost = 0.6
+#Tfrost = cT.CO2_FrostPoints
 windupTime = 8
 convergeT = 0.01
 
@@ -185,7 +185,6 @@ def sublimation_free_forced(Ls0, L04obl, atmofactor, atmoPressSF, SLOPEDaverageD
    
     # Loop over every day
     
-
     for day in range(0, numDays_sublimation-1):
         # Calculate surface sublimation  
         #print('Day: %1.0f'%day)
@@ -221,7 +220,7 @@ def sublimation_free_forced(Ls0, L04obl, atmofactor, atmoPressSF, SLOPEDaverageD
             diurnal_m_forced_thickness[timestep] = (m_forced*dt/cT.density_ice)
             
             # Sensible heat for free convection (Eq 6 from Dundas et al. 2010)
-            rho_surf=  rho_molecules(cT.m_gas_co2, cT.m_gas_h2o, cT.P_atm, e_sat, T_surf_subl)
+            rho_surf = rho_molecules(cT.m_gas_co2, cT.m_gas_h2o, cT.P_atm, e_sat, T_surf_subl)
             rho_atm = rho_molecules(cT.m_gas_co2, cT.m_gas_h2o, cT.P_atm, e_watvap, T_atm_subl)
             rho_ave = (rho_atm + rho_surf )/2
             
@@ -258,6 +257,24 @@ def sublimation_free_forced(Ls0, L04obl, atmofactor, atmoPressSF, SLOPEDaverageD
     print('Final free convection sublimation is %10.9f mm \n' %(TotalFree*1000))
     print('Final total sublimation is %3.3f mm \n'%(TotalSublimation*1000))
     return TotalFree, TotalForced, TotalSublimation
+
+
+def CO2_frost_T(lsrad, s):
+    # Calculate frost point tmerpatures vs time, for a given elevation
+    # paper - ?
+    # from Bramson et al 2019 model
+    # May not be the best way
+    atmPressTerms = np.array([7.97078, -0.539781, 0.468818, 0.368771, -0.392702, 0.0206071,
+                     -0.0224410, -0.0326866, -0.00261966, 0.0145776, -0.000184519])
+    atmPress = atmPressTerms[0]
+    for ii in range(0, 5):
+        atmPress += atmPressTerms[(ii*2)+1]*np.sin((ii+1)*lsrad) + atmPressTerms[(ii*2)+2]*np.cos((ii+1)*lsrad)
+    
+    atmPress = atmPress*np.exp(-(s.Elevation+3627)/s.atmScaleHeight) # Scale pressure from Viking Landing site at -3627 m elevation
+    CO2FrostPoints = 3148/(23.102 - np.log(atmPress)) # Sublimation point of CO2 ice
+    CO2FrostPoints = CO2FrostPoints * s.frostSwitch # Turns frost off by setting frost point to 0 if inputted in param file
+    return CO2FrostPoints
+
 #%% free and forced convection
 '''
 things that are equivalent to matlab fit(x), but not fit

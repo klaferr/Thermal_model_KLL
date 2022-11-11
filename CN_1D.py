@@ -30,9 +30,9 @@ Tref = 250
 # Frost
 emisFrost = 0.95
 albedoFrost = 0.6
-Tfrost = cT.CO2_FrostPoints
+#Tfrost = cT.CO2_FrostPoints
 windupTime = 8
-convergeT = 0.01
+convergeT = 0.05
 
 runTime = 15
 f = 0.5
@@ -137,26 +137,26 @@ def final_year(Tsurf, Temps, frostMasses):
     print(r'Mean Frost Mass: %8.4f kg/m^2'%np.nanmean(frostMasses))
     return 
 
-def diurnal_average(hr, Tsurf, slope):
-    print(np.shape(hr))
+def diurnal_average(hr, Tsurf, slope, lsWrapped, nStepsInYear):
+    # adjust for Ls0 affect too
+    hr0 = Ls0_wrap(nStepsInYear, lsWrapped, hr)
+    
     # Temps, T_regs, nlayers
-    days = np.round(cT.MarsyearLength_days).astype("int")
-
-    beginDayIndex = np.zeros((days+1))*np.nan
+    days = round(cT.MarsyearLength_days) #np.round(cT.MarsyearLength_days).astype("int")
+    beginDayIndex = np.zeros((days))*np.nan
     beginDayIndex[0] = 0
-    dayIndex = 1
+    dayIndex = 0
     for n in range(0, np.size(hr)):
-        if (hr[n] > 0) & (hr[n-1] < 0):
+        if (hr0[n] < 0) & (hr0[n-1] > 0):
             beginDayIndex[dayIndex] = n
             dayIndex = dayIndex + 1
-    
     beginDayIndex = beginDayIndex.astype('int')
-    numDays = np.max(np.size(beginDayIndex))
+    numDays = np.max(np.size(beginDayIndex)) # this feels useless
     #averageDiurnalTemps = np.zeros((nLayers, numDays))
-    
+
     averageDiurnalSurfTemps = np.zeros((numDays))
     minimumDiurnalSurfTemps = np.zeros((numDays))
-    diurnalTsurfCurves = []
+    diurnalTsurfCurves = [] #np.zeros((numDays, 200))#[]
     #T_reg_Diurnal = np.zeros((nLayers, numDays))
     
     for n in np.arange(0, numDays):
@@ -166,7 +166,7 @@ def diurnal_average(hr, Tsurf, slope):
             dTsurfstep = np.array((Tsurf[beginDayIndex[n]:np.size(Tsurf)]))
             diurnalTsurfCurves.append(dTsurfstep)
             
-            #diurnalTsurfCurves[n, :] = Tsurf[beginDayIndex[n]:np.size(Temps,1)]
+            #diurnalTsurfCurves[n, :] = Tsurf[beginDayIndex[n]:np.size(Tsurf)]
     
             # if temps is shape
             #averageDiurnalTemps[:,n] = np.mean(Temps[:, beginDayIndex[n]:np.size(Temps, 1)], 1)
@@ -199,7 +199,7 @@ def diurnal_average(hr, Tsurf, slope):
         out = SLOPEDaverageDiurnalSurfTemps
         
     return out    
-    #return REGminDiurnalSurfTemps, REGdiurnalTsurfCurves, SLOPEDaverageDiurnalSurfTemps #averageDiurnalAllTemps,
+    #return REGminDiurnalSurfTemps, REGdiurnalTsurfCurves#, SLOPEDaverageDiurnalSurfTemps #averageDiurnalAllTemps,
 
 def diurnal_wrap(nStepsInYear, nLayers, Temps, hr, lsWrapped):
     whereCrossOver360to0 = np.argwhere((lsWrapped[1:]-lsWrapped[0:-1]) <= 0)[0][0] +1
@@ -217,12 +217,18 @@ def diurnal_wrap(nStepsInYear, nLayers, Temps, hr, lsWrapped):
     
     return Ls0, T0, hr0
 
+def Ls0_wrap(nStepsInYear, lsWrapped, v):
+    whereCrossOver360to0 = np.argwhere((lsWrapped[1:]-lsWrapped[0:-1]) <= 0)[0][0] +1
 
-
+    v0 = []
+    
+    v0[:nStepsInYear-whereCrossOver360to0] = v[whereCrossOver360to0:]
+    v0[nStepsInYear - whereCrossOver360to0:nStepsInYear] = v[:whereCrossOver360to0]
+    return v0
     
 
 # - Main focus
-def Crank_Nicholson(nLayers, nStepsInYear, windupTime, runTime, ktherm, dz, dt, rhoc, kappa, emissivity, Tfrost, Tref, depthsAtMiddleOfLayers, sf, visScattered, sky, IRdown, flatVis, flatIR):
+def Crank_Nicholson(nLayers, nStepsInYear, windupTime, runTime, ktherm, dz, dt, rhoc, kappa, emissivity, Tref, depthsAtMiddleOfLayers, sf, visScattered, sky, IRdown, flatVis, flatIR, CO2_FrostPoints, Mars_Trough):
     Temps = np.zeros((nLayers, nStepsInYear))
     Tsurf = np.zeros((nStepsInYear))
     lastTimestepTemps = np.zeros((nLayers, runTime))
@@ -261,12 +267,18 @@ def Crank_Nicholson(nLayers, nStepsInYear, windupTime, runTime, ktherm, dz, dt, 
     A.eliminate_zeros()
 
     beta = ktherm[0]*dt/(rhoc[0]*dz[0]*dz[0])
+    
+    # Keiffer - downwelling
+    DownIRPolarNight = Mars_Trough.downwellingPerc *cT.sigma * CO2_FrostPoints**4
+    maxIRdown = np.max([IRdown*sky, DownIRPolarNight])
             
     # Total fluxes
     # requires: soldist, sf, IRdown, visScattered, nStepsInYear, lsWrapped, hr, ltst, lsrad, az, sky, flatVis, flatIR = op.orbital_params(ecc, obl, Lsp, dt_orb, flat_Mars_Trough)
     
     Fin = (sf + visScattered*sky + flatVis*(1-sky))*(1-albedo) + (IRdown*sky + flatIR*(1-sky))*emissivity;
-    Fin_frost = (sf + visScattered*sky +flatVis*(1-sky))*(1-albedoFrost)+(IRdown*sky + flatIR*(1-sky))*emisFrost
+    Fin_frost = (sf + visScattered*sky +flatVis*(1-sky))*(1-albedoFrost)+(maxIRdown*sky + flatIR*(1-sky))*emisFrost
+    #Fin_frost = (sf + visScattered.*sky + flatVis.*(1-sky)).*(1-s.albedoFrost) + (maxIRDown + flatIR.*(1-sky)).*s.emisFrost;
+
     Fin_i = (np.roll(sf, -1) + np.roll(visScattered, -1)*sky + np.roll(flatVis, -1)*(1-sky))*(1-albedo) + (np.roll(IRdown, -1)*sky + np.roll(flatIR, -1)*(1-sky))*emissivity
     
     # Calculate a and b's for surface temperature calculation
@@ -276,13 +288,14 @@ def Crank_Nicholson(nLayers, nStepsInYear, windupTime, runTime, ktherm, dz, dt, 
     
     # Frost mass
     gamma_frost = (-1/cT.Lc_CO2)*(2*ktherm[0]*(dt/dz[0]))
-    theta_frost = (dt/cT.Lc_CO2)*(2*ktherm[0]*cT.CO2_FrostPoints/dz[0] - Fin_frost +emisFrost*cT.sigma*cT.CO2_FrostPoints**4)
+    theta_frost = (dt/cT.Lc_CO2)*(2*ktherm[0]*CO2_FrostPoints/dz[0] - Fin_frost +emisFrost*cT.sigma*CO2_FrostPoints**4)
     theta_frost_i = np.roll(theta_frost, -1)
     
     defrosting_decrease = np.exp(-depthsAtMiddleOfLayers/timestepSkinDepth)
 
     for yr in range(0, runTime):  # this is the run up time before actually starting.   
         for n in range(0, nStepsInYear):
+            Tfrost = CO2_FrostPoints[n]
             if frostMass == 0:
                 # Have to recacluate each time  
                 # Mssing: if ktherm is temperature dependent.
@@ -306,13 +319,24 @@ def Crank_Nicholson(nLayers, nStepsInYear, windupTime, runTime, ktherm, dz, dt, 
                 Tsurf[n] = a_i + b*Temps[0,n]  # Uses implicit a with new T calculation- instantanous balance
                 frostMass = 0
                 
+                if n == 10:
+                     print("pre-handle")
+                     print("Tref: ", Tsurf[n])
+                     print("Frost Mass: ", frostMass)
+                     print("Tfrost:", Tfrost)           
+                
                 # uf surface Temp is below Frost Temp, make a frost layer. 
                 if Tsurf[n] < Tfrost:
                     deltaTsurf = Tfrost - Tsurf[n]
                     frostMass = deltaTsurf*rhoc[0]*timestepSkinDepth/cT.Lc_CO2
                     Temps[:, n] = Temps[:, n] +deltaTsurf*defrosting_decrease
                     Tsurf[n] = Tfrost
-            
+                if n == 10:
+                    print("post-handle")
+                    print("Tref: ", Tsurf[n])
+                    print("Frost Mass: ", frostMass)
+                    print("Tfrost:", Tfrost)
+
             elif frostMass > 0:
                 # Frost affects surface temp
                 boundary[0] = 2*beta*Tfrost
@@ -329,6 +353,12 @@ def Crank_Nicholson(nLayers, nStepsInYear, windupTime, runTime, ktherm, dz, dt, 
                 Tsurf[n] = Tfrost
                 
                 frostMass = frostMass + (1-f)*(gamma_frost*oldTemps[0] +theta_frost[n]) + f*(gamma_frost*Temps[0, n] + theta_frost_i[n]) 
+                
+                if n == 10:
+                     print("pre-handle")
+                     print("Tref: ", Tsurf[n])
+                     print("Frost Mass: ", frostMass)
+                     print("Tfrost:", Tfrost)     
 
                 if frostMass < 0:
                     shiftedFrostMasses = np.roll(frostMasses, 1)
@@ -337,6 +367,12 @@ def Crank_Nicholson(nLayers, nStepsInYear, windupTime, runTime, ktherm, dz, dt, 
                     Tsurf[n] = Tfrost+deltaTsurf2
                     Temps[:, n] = Temps[:, n]+deltaTsurf2*defrosting_decrease
                     frostMass = 0
+                if n == 10:
+                    print("post-handle")
+                    print("Tref: ", Tsurf[n])
+                    print("Frost Mass: ", frostMass)
+                    print("Tfrost:", Tfrost)
+
             
             else:
                 print('Frost mass is negative, issue', n)
@@ -359,6 +395,7 @@ def Crank_Nicholson(nLayers, nStepsInYear, windupTime, runTime, ktherm, dz, dt, 
                 print('Converge to %3.7f'%(np.max(np.abs(tempDiffs))))
             else:
                 print('Did not converge, increase run Time')
+                #print('Converge to %3.7f'%(np.max(np.abs(tempDiffs))))
         if yr > 1:
             tempDiffs = lastTimestepTemps[:,yr] - lastTimestepTemps[:,yr-1]
             #print('Still at least %3.7f K off' %np.max(np.abs(tempDiffs)))

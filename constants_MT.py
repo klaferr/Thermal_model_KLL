@@ -46,7 +46,7 @@ m_gas_co2 = (carbon+oxygen*2)/1000  # kg/mol
 triple_P_co2 = 516757               # Pa
 triple_Temp_co2 = 216.55            # K
 Lc_CO2 =  589.9*10**3               # Latent heat of CO2 frost; J/kg
-CO2_FrostPoints = 150
+#CO2_FrostPoints = 150
 
 
 # Earth Specific constants

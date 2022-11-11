@@ -1,1 +1,1 @@
-{"regolithPorosity":0.4,"icePorosity":0, "iceDust":0.03, "DiffusionCoeff": 0.0003, "InputDepth":1, "initialLagThickness": 0, "growLag":0}
+{"regolithPorosity":0.4,"icePorosity":0, "iceDust":0.03, "DiffusionCoeff": 0.0003, "InputDepth":1, "initialLagThickness": 1, "growLag":0, "emisFrost":0.90 ,"emis":1.0, "albedoFrost":0.65, "flatAlbedo":0.4, "albedo":0.15}

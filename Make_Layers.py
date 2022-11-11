@@ -55,12 +55,12 @@ def Make(filename, layers, lengthOfYear, lengthOfDay, z_ei, z_pf):
     print ('Annual thermal skin depth of bottom layer = %.8f m'%annualSkinDepths[-1])
     
     # z's
-    z_ei = annualSkinDepths[0]*annualLayers
-    z_pf = annualSkinDepths[0]*annualLayers
+    #z_ei = annualSkinDepths[0]*annualLayers
+    #z_pf = annualSkinDepths[0]*annualLayers
     
     if z_ei <= 0:
         # no lag - check this works, excess ice
-        firstLayerThickness = diurnalSkinDepths[2]/((1-layerGrowth**(dailyLayers)/(1-layerGrowth)))
+        firstLayerThickness = diurnalSkinDepths[2]/((1-layerGrowth**dailyLayers)/(1-layerGrowth))
         numberLayers = math.ceil(np.log(1-(1-layerGrowth)*(annualLayers*annualSkinDepths[2]/firstLayerThickness))/np.log(layerGrowth) ) # Number of subsurface layers based on annual skin depth of deepest layer
         dz = (firstLayerThickness * layerGrowth**np.arange(0, numberLayers, 1)) # transpose to make column vector
 
@@ -69,18 +69,18 @@ def Make(filename, layers, lengthOfYear, lengthOfDay, z_ei, z_pf):
         rhoc_vector = np.zeros(numberLayers) # Densities of subsurface (kg/m^3)
         
         # set to excess
-        k_vector = k[2]
-        rhoc_vector = rhoc[2] 
+        k_vector[:] = k[2]
+        rhoc_vector[:] = rhoc[2] 
         z_ei_index = 0
         z_pf_index = -1
 
     else: # lag exists
         # dry lag
-        firstLayerThickness = diurnalSkinDepths[0]/((1-layerGrowth**(dailyLayers)/(1-layerGrowth)))
-        
+        firstLayerThickness = diurnalSkinDepths[0]/((1-layerGrowth**dailyLayers)/(1-layerGrowth))
+
         if z_pf <= 0: # this could be it's own function
             # porefilling ice is stable up to surface - check
-            firstLayerThickness = diurnalSkinDepths[0]/((1-layerGrowth**(dailyLayers)/(1-layerGrowth)))
+            firstLayerThickness = diurnalSkinDepths[0]/((1-layerGrowth**dailyLayers)/(1-layerGrowth))
             numberLayers = math.ceil(np.log(1-(1-layerGrowth)*(annualLayers*annualSkinDepths[2]/firstLayerThickness))/np.log(layerGrowth) ) # Number of subsurface layers based on annual skin depth of deepest layer
             dz = (firstLayerThickness * layerGrowth**np.arange(0, numberLayers, 1)) # transpose to make column vector
 
@@ -90,7 +90,7 @@ def Make(filename, layers, lengthOfYear, lengthOfDay, z_ei, z_pf):
             
             # excess ice table depth
             depthsAtLayerBoundaries = np.cumsum(dz)
-            z_ei_index = np.where(np.min(np.abs(depthsAtLayerBoundaries - z_ei)))[0]
+            z_ei_index =np.argwhere(np.abs(depthsAtLayerBoundaries - z_ei) == np.min(np.abs(depthsAtLayerBoundaries - z_ei)))
             
             if z_ei_index ==1:
                 z_ei_index+=1
@@ -139,7 +139,7 @@ def Make(filename, layers, lengthOfYear, lengthOfDay, z_ei, z_pf):
                 z_pf_index = 1
                 
                 # exces sice table depthdepthsAtLayerBoundaries = np.cumsum(dz)
-                z_ei_index = np.where(np.min(np.abs(depthsAtLayerBoundaries - z_ei)))
+                z_ei_index = np.argwhere(np.abs(depthsAtLayerBoundaries - z_ei) == np.min(np.abs(depthsAtLayerBoundaries - z_ei)))
                 
                 if z_ei_index ==1:
                     z_ei_index+=1
@@ -160,10 +160,10 @@ def Make(filename, layers, lengthOfYear, lengthOfDay, z_ei, z_pf):
                 
         else:
             # more than one layer of lag.  - concerned
-            firstLayerThickness = diurnalSkinDepths[0]/((1-layerGrowth**(dailyLayers)/(1-layerGrowth)))
+            firstLayerThickness = diurnalSkinDepths[0]/((1-layerGrowth**dailyLayers)/(1-layerGrowth))
             numberLayers = math.ceil(np.log(1-(1-layerGrowth)*(annualLayers*annualSkinDepths[2]/firstLayerThickness))/np.log(layerGrowth) ) # Number of subsurface layers based on annual skin depth of deepest layer
             dz = (firstLayerThickness * layerGrowth**np.arange(0, numberLayers, 1)) # transpose to make column vector
-
+            
             # se tup
             k_vector = np.zeros(numberLayers)       # Thermal conductivities (W m^-1 K^-1)
             rhoc_vector = np.zeros(numberLayers) # Densities of subsurface (kg/m^3)
@@ -171,8 +171,9 @@ def Make(filename, layers, lengthOfYear, lengthOfDay, z_ei, z_pf):
             
             # excess ice table depth
             depthsAtLayerBoundaries = np.cumsum(dz)
-            z_ei_index = np.int(np.where(np.min(np.abs(depthsAtLayerBoundaries - z_ei)))[0]) 
-            z_pf_index = np.where(np.min(np.abs(depthsAtLayerBoundaries - z_pf)))[0]
+
+            z_ei_index = np.argwhere(np.abs(depthsAtLayerBoundaries - z_ei) == np.min(np.abs(depthsAtLayerBoundaries - z_ei)))[0][0]
+            z_pf_index = np.argwhere(np.abs(depthsAtLayerBoundaries - z_pf) == np.min(np.abs(depthsAtLayerBoundaries - z_pf)))[0][0]
             
             if z_pf < z_ei:
                 # case : if porefilling ice is barely stable, within the same layer as exess ice. move it. 
@@ -206,12 +207,12 @@ def Make(filename, layers, lengthOfYear, lengthOfDay, z_ei, z_pf):
                 # no pore ice, set index to -1
                 z_pf_index = -1
                 depthsAtLayerBoundaries[z_ei_index] = z_ei
-                
-                if z_pf_index > 1:
+
+                if z_ei_index > 1:
                     dz[z_ei_index] = np.abs(depthsAtLayerBoundaries[z_ei_index] - depthsAtLayerBoundaries[z_ei_index-1])
                     dz[z_ei_index+1] = np.abs(depthsAtLayerBoundaries[z_ei_index+1] - depthsAtLayerBoundaries[z_ei_index])
                 else:
-                    dz[z_pf_index] = z_pf
+                    dz[z_ei_index] = z_ei
                     dz[z_ei_index+1] = np.abs(depthsAtLayerBoundaries[z_ei_index+1] - depthsAtLayerBoundaries[z_ei_index])
                                 
                 # set
@@ -226,11 +227,11 @@ def Make(filename, layers, lengthOfYear, lengthOfDay, z_ei, z_pf):
     Kappa_vector = k_vector/(rhoc_vector)     
     return numberLayers, k_vector, dz, rhoc_vector, Kappa_vector, z_ei_index, z_pf_index, depthsAtMiddleOfLayers, depthsAtLayerBoundaries
        
-def EquilibriumDepth(s, bramson, atmoPressure):
+def EquilibriumDepth(Temps, Tsurf, atmoPressure, ktherm, dz, z_ei_index, z_pf_index):
     # bramson makes mares torughs only, update one day
-    sTrough = s # typically, flat trough
-    sTrough.slope = 0
-    sTrough.slope_aspect = 0
+    #sTrough = s # typically, flat trough
+    #sTrough.slope = 0
+    #sTrough.slope_aspect = 0
     
     FOUNDZeq = 0
     groundicecounter= 1
@@ -238,13 +239,9 @@ def EquilibriumDepth(s, bramson, atmoPressure):
     triedTwice = 0
     
     while FOUNDZeq == 0:
-        nLayers, ktherm, dz, rho, cp, kappa, z_ei_index, z_pf_index, depthsAtMiddleOfLayers, depthsAtBottomOfLayers = Make(bramson, cT.MarsyearLength, Mars_Trough.Rotation_rate) 
         dz_test = dz
         
         depthsAtLayerBoundary = np.cumsum(dz_test)
-        soldist, sf, IRdown, visScattered, nStepsInYear, lsWrapped, hr, ltst, lsrad, az, sky, flatVis, flatIR = op.orbital_params(ecc, obl, Lsp, dt_orb, sTrough, trough_num)
-        # check s.albedo
-        Temps, windupTemps, finaltemps, Tsurf, frostMasses = cn.Crank_Nicholson(nLayers, nStepsInYear, windupTime, runTime, ktherm, dz, dt, rho, cp, kappa, emissivity, Tfrost, Tref, depthsAtMiddleOfLayers, sf, visScattered, sky, IRdown, flatVis, flatIR)
         
         # is ground ice in lag deposit? - from matlab code
         onesMatrix = np.ones((1, np.size(Temps[1:z_ei_index+1, :], 1)))
@@ -257,16 +254,20 @@ def EquilibriumDepth(s, bramson, atmoPressure):
         
         atmoDensity = (atmoPressure * (cT.m_gas_h20/cT.NA/cT.k))/Tsurf_mean
         
+        
         if np.all(boundary_rhov_mean < atmoDensity):
             # ground ice is not stable
             z_pf = depthsAtLayerBoundary[z_ei_index]
             z_eqConverge = -1
             
-            if triedTwice >0:
+            print("Ground ice counter = %2.0f"%groundicecounter)
+            print("Ground ice not stable, z_pf = %3.0f"%z_pf)
+            
+            if triedTwice > 0:
                 FOUNDZeq = 1
                 PFICE = 0
             else:
-                triedTwice +=1
+                triedTwice += 1
                 FOUNDZeq = 0
          
         else:
@@ -288,21 +289,32 @@ def EquilibriumDepth(s, bramson, atmoPressure):
                     z_eq = 0
                     z_pf = 0
                     FOUNDZeq = 1
+                    
+                    print("Ground ice counter = %2.0f"%groundicecounter)
+                    print("Ground ice not stable, z_pf = %3.0f"%z_pf)
+                    
                 else:
                     z_eq = interp1d(all_rhov, alldepths)(atmoDensity) # itnerpolae
                     z_eqConverge = np.abs(z_pf - z_eq)
                     
-                    tmp_z_pf_index = np.argwhere(np.min(np.abs(depthsAtLayerBoundary - z_eq)))
+                    tmp_z_pf_index  = np.argwhere(np.abs(depthsAtLayerBoundary - z_eq) == np.min(np.abs(depthsAtLayerBoundary - z_eq)))
+                    
+                    print("Ground ice counter = %2.0f"%groundicecounter)
+                    print("Ground ice not stable, z_pf = %3.0f"%z_pf)
                     
                     if (z_eqConverge < np.min(np.array([dz_test[tmp_z_pf_index+1]/2, 0.003])))  and (groundicecounter > 1):
                         z_pf = z_eq
                         FOUNDZeq = 1
                     else:
-                        if groundicecounter>4:
+                        if groundicecounter > 14:
                              # 14
                              FOUNDZeq = 1
                              print('Ground ice counter = %2.0f: z_pf = %3.9f, z_eq based on Temps = %3.9f, difference is = %3.9f and convergence criteria = %3.9f. Set to mean of the values: %3.9f \n'%(groundicecounter, z_pf, z_eq, z_eqConverge, min([dz_test[tmp_z_pf_index+1]/2, 0.003]),np.mean([z_pf, z_eq])))
-
+                             z_pf = np.mean(np.array([z_pf, z_eq]))
+                        else:
+                             FOUNDZeq = 0
+                             z_pf = z_eq
+            else:
                 if atmoDensity > all_rhov[0]:
                     z_eq = 0
                     z_pf = 0
@@ -311,11 +323,12 @@ def EquilibriumDepth(s, bramson, atmoPressure):
                     z_eq = z_pf
                     print('Ground ice counter %2.0f, ice is not stable upt to surface'%groundicecounter)
         groundicecounter+=1
-    return PFICE, z_eq, z_pf  
+    return z_eq, z_pf  
   
 
 
 def layer_types(regoPoro, icePoro, iceDust):
+    # this is used when the bramosn layer is not sassumed to be true
     rhoc_regolith = cT.density_rock* cT.c_rock*(1-regoPoro)
     rhoc_porefillingice = rhoc_regolith + cT.density_ice*cT.c_ice*(regoPoro)
     rhoc_excessice = cT.density_rock* cT.c_rock*(iceDust) + cT.density_ice*cT.c_ice*(1-iceDust-icePoro)
@@ -336,7 +349,46 @@ def layer_types(regoPoro, icePoro, iceDust):
     
     folder = Folder(rhoc, k, Kappa)
 
-    return folder      
+    return folder    
+
+def preset_layertypes(tr):
+    # tr == bramson
+    # the values in the bramson file come from bramson + 2019
+    class Folder:
+        def __init__(self, rhoc, k, Kappa):
+            self.rhoc = rhoc
+            self.k = k
+            self.Kappa = Kappa  
+    
+    rhoc = tr.rhoc
+    k = np.array((tr.TI))**2/rhoc
+    Kappa = k/rhoc
+        
+    folder = Folder(rhoc, k, Kappa)
+    return folder   
+
+def pick_input_depth(time_start, L04_lsp, L04_ecc, L04_obl, annualSkinDepths, s):
+    z_ei = annualSkinDepths[0]*s.annualLayers # look within 6 (or whatever annualLayers is) skin depths of dry lag and have no pore filling ice
+    z_pf = annualSkinDepths[0]*s.annualLayers # no pore-filling ice- set pf value to be same as z_ei
+    nLayers, ktherm, dz, rhoc, kappa, z_ei_index, z_pf_index, depthsAtMiddleOfLayers, depthsAtLayerBoundaries = ml.Make(bramson, terrain, cT.MarsyearLength, Mars_Trough.Rotation_rate, z_ei, z_pf)
+
+    obl = L04_obl[time_start]
+    
+    atmoPress = sub.calc_atmPress(obl)
+    
+    PFICE, z_eq, z_pf = ml.EquilibriumDepth(s, bramson, atmoPress)
+    
+    if PFICE == 0:
+        # if no equilibrium depth found within several annual skin depths
+        print('No equilibrium depth found. Ice not stable at all. Setting excess ice interface at 6 meters depth.')
+        z_ei = 6
+        z_pf = 6
+    else:
+        z_ei = z_eq # Will set initial thickness of dry lag to be equilibrium depth
+        z_pf = z_eq # No pore-filling ice to start, excess ice starts at equilibrium depth, z_pf >= z_ei is that condition
+    return z_ei, z_pf
+
+
 #%%
 def old_Make(filename, lengthOfYear, lengthOfDay):
     k = np.array(filename.k)
