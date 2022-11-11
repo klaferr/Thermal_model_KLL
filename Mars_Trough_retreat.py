@@ -19,8 +19,8 @@ import matplotlib.pyplot as plt
 # ** Import custom Libraries **
 import Orbital_Parameters as op
 import Make_Layers as ml
-import testing_matrixmath as cn
-#import CN_1D as cn
+#import testing_matrixmath as cn
+import CN_1D as cn
 import constants_MT as cT
 import Sublimation_calculations as sub
 
